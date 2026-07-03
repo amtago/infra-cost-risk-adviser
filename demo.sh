@@ -44,6 +44,9 @@ run "fixtures/destructive_plan.json"        fixtures/destructive_plan.json
 run "fixtures/security_misconfig_plan.json" fixtures/security_misconfig_plan.json
 run "fixtures/destructive_plan.json --format json" fixtures/destructive_plan.json --format json
 
+printf '\n── GCP fixtures ────────────────────────────────────────\n'
+run "fixtures/gcp_plan.json" fixtures/gcp_plan.json
+
 printf '\n── CloudFormation fixtures ─────────────────────────────\n'
 run_cfn "fixtures/cfn_changeset.json" \
   fixtures/cfn_changeset.json

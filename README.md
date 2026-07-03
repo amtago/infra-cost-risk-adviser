@@ -205,6 +205,47 @@ Findings (grouped by severity):
   • [destructive] aws_db_instance.prod does not have deletion protection enabled.
 ```
 
+### GCP plan (exits 2)
+
+```
+$ tfx analyze fixtures/gcp_plan.json
+
+This plan adds $363.83/mo and has 2 critical issue(s) require attention.
+Note: 2 resource(s) have unknown cost (usage-based pricing; see table below).
+
+Cost breakdown ($/mo):
+  Resource                                                Change     $/mo
+  --------------------------------------------------------------------------------
+  google_compute_disk.data                                - delete   $17.00
+  google_compute_firewall.allow_ssh                       + create   unknown
+  google_compute_instance.web                             + create   $97.84
+  google_container_cluster.primary                        + create   $73.00
+  google_container_node_pool.workers                      + create   $116.80
+  google_sql_database_instance.db                         + create   $93.19
+  google_storage_bucket.assets                            + create   unknown
+  --------------------------------------------------------------------------------
+                                                                      $380.83 added
+                                                                     -$17.00 removed
+                                                                      $363.83/mo net
+
+Findings (grouped by severity):
+
+  [CRITICAL]
+  • [destructive] google_compute_disk.data (google_compute_disk) will be permanently deleted.
+  • [security] google_compute_firewall.allow_ssh allows inbound SSH (port 22) from 0.0.0.0/0.
+
+  [WARNING]
+  • [destructive] google_sql_database_instance.db does not have deletion_protection enabled.
+  • [security] google_storage_bucket.assets has uniform_bucket_level_access disabled.
+  • [security] google_sql_database_instance.db does not require SSL connections.
+  • [security] google_sql_database_instance.db does not have automated backups enabled.
+  • [cost-risk] google_container_node_pool.workers has autoscaling enabled with no max_node_count.
+
+  [INFO]
+  • [cost-risk] google_compute_instance.web is missing cost-allocation label(s): team.
+  • [cost-risk] google_container_node_pool.workers is missing cost-allocation label(s): env, team.
+```
+
 ### Security misconfig (exits 2)
 
 ```
@@ -367,6 +408,9 @@ tfx analyze fixtures/cost_increase_plan.json
 tfx analyze fixtures/destructive_plan.json
 tfx analyze fixtures/security_misconfig_plan.json
 
+# GCP Terraform plan
+tfx analyze fixtures/gcp_plan.json
+
 # CloudFormation — change set only (destructive findings, costs unknown without template)
 tfx cfn fixtures/cfn_changeset.json
 
@@ -374,37 +418,44 @@ tfx cfn fixtures/cfn_changeset.json
 tfx cfn fixtures/cfn_changeset.json --template fixtures/cfn_template.json
 ```
 
+The GCP fixture surfaces: open SSH firewall rule (critical), stateful Persistent Disk deletion (critical), Cloud SQL without SSL or backups (warning), Cloud Storage with legacy ACLs (warning), GKE node pool with unbounded autoscaling (warning), and missing cost-allocation labels (info).
+
 The CFN fixture with template surfaces: open SSH security group (critical), RDS replace causing downtime (critical), EBS permanently deleted (critical), missing encryption (warning), oversized EC2 at 11× plan median (warning), and missing cost-allocation tags (info).
 
 ---
 
 ## Rule reference
 
+Rules fire on the detected provider. AWS and GCP rules run in the same pipeline — a mixed plan produces findings from both.
+
 ### Tier 1 — Destructive / data-loss
-| Rule | Severity |
-|---|---|
-| Resource will be deleted | warning |
-| Resource will be replaced (destroy + recreate) | warning |
-| Stateful resource (RDS, EBS, DynamoDB, ElastiCache) deleted or replaced | **critical** |
-| Stateful resource missing `deletion_protection` | warning |
+
+| Rule | AWS | GCP | Severity |
+|---|---|---|---|
+| Resource will be deleted | ✓ | ✓ | warning |
+| Resource will be replaced (destroy + recreate) | ✓ | ✓ | warning |
+| Stateful resource deleted or replaced | ✓ | ✓ | **critical** |
+| Stateful resource missing `deletion_protection` | ✓ (RDS, DynamoDB) | ✓ (Cloud SQL) | warning |
 
 ### Tier 2 — Security misconfig
-| Rule | Severity |
-|---|---|
-| Security group allows `0.0.0.0/0` on SSH/RDP/DB ports | **critical** |
-| S3 bucket with `public-read` or `public-read-write` ACL | **critical** |
-| IAM policy with `Action: "*"` | **critical** |
-| RDS / EBS without encryption at rest | warning |
-| IAM policy with `Resource: "*"` | warning |
+
+| Rule | AWS | GCP | Severity |
+|---|---|---|---|
+| Firewall open to `0.0.0.0/0` on SSH/RDP/DB ports | ✓ (security groups) | ✓ (compute firewall) | **critical** |
+| Public object storage | ✓ (S3 public ACL) | ✓ (uniform bucket-level access disabled) | **critical** / warning |
+| IAM policy with `Action: "*"` | ✓ | — | **critical** |
+| IAM policy with `Resource: "*"` | ✓ | — | warning |
+| Storage without encryption at rest | ✓ (RDS, EBS) | ✓ (Cloud SQL — SSL + backups) | warning |
 
 ### Tier 3 — Cost-risk hybrid
-| Rule | Severity |
-|---|---|
-| Resource cost > 5× median of all priced resources in plan | warning |
-| Autoscaling group with no `max_size` set | warning |
-| New/updated resource missing required cost tags | info |
 
-The missing-tags rule checks for `Env` and `Team` by default. Override with `--required-tags`:
+| Rule | AWS | GCP | Severity |
+|---|---|---|---|
+| Resource cost > 5× median in plan | ✓ | ✓ | warning |
+| Autoscaling with no upper bound | ✓ (`aws_autoscaling_group` max_size) | ✓ (GKE node pool max_node_count) | warning |
+| New/updated resource missing required cost tags/labels | ✓ | ✓ | info |
+
+The missing-tags/labels rule checks for `Env` and `Team` by default. Override with `--required-tags`:
 
 ```
 # required-tags.txt
@@ -423,9 +474,11 @@ Providing an empty file (comments only) disables the rule entirely.
 
 ---
 
-## Supported AWS resources
+## Supported resources
 
-Prices are approximate us-east-1 on-demand rates, stored as a static snapshot in `pricing/providers/aws/prices.go`. No API keys or internet access required. Resources with usage-based pricing are reported as `unknown` rather than `$0`.
+Prices are approximate on-demand rates stored as a static snapshot (no API keys or internet access required). Resources with usage-based pricing are reported as `unknown` rather than `$0`.
+
+### AWS (`pricing/providers/aws/prices.go`, region: us-east-1)
 
 | Resource | Pricing | Rules |
 |---|---|---|
@@ -443,14 +496,31 @@ Prices are approximate us-east-1 on-demand rates, stored as a static snapshot in
 | `aws_iam_policy` / `aws_iam_role_policy` | n/a | Tier 2 |
 | `aws_autoscaling_group` | n/a | Tier 3 |
 
-GCP and Azure are stubbed with explicit `not implemented` errors — designed for extension without touching the core pipeline.
+### GCP (`pricing/providers/gcp/prices.go`, region: us-central1)
+
+| Resource | Pricing | Rules |
+|---|---|---|
+| `google_compute_instance` | E2 / N2 / N1 / C2 machine types | Tier 1, 3 |
+| `google_sql_database_instance` | db-f1-micro / n1-standard / db-custom | Tier 1, 2, 3 |
+| `google_compute_disk` | per GB — pd-standard / pd-ssd / pd-balanced / pd-extreme | Tier 1 |
+| `google_container_cluster` | GKE management fee ($73/mo) | Tier 1, 3 |
+| `google_container_node_pool` | via machine_type lookup | Tier 3 |
+| `google_filestore_instance` | per GB — BASIC_HDD / BASIC_SSD | Tier 1 |
+| `google_compute_forwarding_rule` | base rate | Tier 3 |
+| `google_storage_bucket` | usage-based → unknown | Tier 2, 3 |
+| `google_cloudfunctions_function` | usage-based → unknown | Tier 3 |
+| `google_pubsub_topic` | usage-based → unknown | Tier 3 |
+| `google_bigquery_dataset` | usage-based → unknown | Tier 3 |
+| `google_compute_firewall` | n/a | Tier 2 |
+
+Azure is stubbed with an explicit `not implemented` error — designed for extension without touching the core pipeline.
 
 ---
 
 ## Development
 
 ```bash
-go test ./...          # 115 tests
+go test ./...          # 206 tests
 go build -o tfx ./cli/
 ```
 
