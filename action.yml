@@ -55,8 +55,9 @@ runs:
 
     - name: Build tfx
       shell: bash
+      working-directory: ${{ github.action_path }}
       run: |
-        go build -o "${{ github.action_path }}/tfx" "${{ github.action_path }}/cli/"
+        go build -o tfx ./cli/
 
     - name: Run tfx
       id: run-tfx
