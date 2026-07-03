@@ -252,11 +252,12 @@ jobs:
       - name: Run tfx
         uses: amtago/infra-cost-risk-adviser@main
         with:
-          plan-file:        plan.json
-          region:           us-east-1
-          github-token:     ${{ secrets.GITHUB_TOKEN }}
-          comment-on-pr:    'true'
-          fail-on-critical: 'true'
+          plan-file:           plan.json
+          region:              us-east-1
+          github-token:        ${{ secrets.GITHUB_TOKEN }}
+          comment-on-pr:       'true'
+          fail-on-critical:    'true'
+          # required-tags-file: .github/required-tags.txt  # optional
 ```
 
 **CloudFormation:**
@@ -298,12 +299,13 @@ jobs:
       - name: Run tfx
         uses: amtago/infra-cost-risk-adviser@main
         with:
-          cfn-changeset-file: changeset.json
-          cfn-template-file:  template.json
-          region:             us-east-1
-          github-token:       ${{ secrets.GITHUB_TOKEN }}
-          comment-on-pr:      'true'
-          fail-on-critical:   'true'
+          cfn-changeset-file:  changeset.json
+          cfn-template-file:   template.json
+          region:              us-east-1
+          github-token:        ${{ secrets.GITHUB_TOKEN }}
+          comment-on-pr:       'true'
+          fail-on-critical:    'true'
+          # required-tags-file: .github/required-tags.txt  # optional
 ```
 
 **Action inputs:**
