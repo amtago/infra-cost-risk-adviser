@@ -336,24 +336,33 @@ jobs:
 
 ## Try the demo fixtures
 
-The repo ships four ready-made plan fixtures. Run them to see all finding types:
+The repo ships fixtures for both Terraform and CloudFormation. Run `demo.sh` to see all finding types at once:
 
 ```bash
 # Clone and build first
-git clone https://github.com/amt/tf-cost-risk && cd tf-cost-risk
+git clone https://github.com/amtago/infra-cost-risk-adviser && cd infra-cost-risk-adviser
 go build -o tfx ./cli/
 
+bash demo.sh ./tfx
+```
+
+Or run individual fixtures:
+
+```bash
+# Terraform
 tfx analyze fixtures/clean_plan.json
 tfx analyze fixtures/cost_increase_plan.json
 tfx analyze fixtures/destructive_plan.json
 tfx analyze fixtures/security_misconfig_plan.json
 
-# Or run all four at once
-bash demo.sh ./tfx
+# CloudFormation — change set only (destructive findings, costs unknown without template)
+tfx cfn fixtures/cfn_changeset.json
 
-# CloudFormation change set fixture (with template for full rule coverage)
+# CloudFormation — with template (full pricing + all three rule tiers)
 tfx cfn fixtures/cfn_changeset.json --template fixtures/cfn_template.json
 ```
+
+The CFN fixture with template surfaces: open SSH security group (critical), RDS replace causing downtime (critical), EBS permanently deleted (critical), missing encryption (warning), oversized EC2 at 11× plan median (warning), and missing cost-allocation tags (info).
 
 ---
 
