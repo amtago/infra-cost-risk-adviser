@@ -72,8 +72,10 @@ tfx version
 tfx --help
 
 Flags:
-  --format text|json   Output format (default: text)
-  --region <region>    AWS region for pricing lookups (default: us-east-1)
+  --format text|json          Output format (default: text)
+  --region <region>           AWS region for pricing lookups (default: us-east-1)
+  --required-tags <file.txt>  Path to a file listing required cost-allocation tags (one per line).
+                              Overrides the built-in Env/Team defaults. Empty file disables the rule.
 ```
 
 **Use a different region:**
@@ -87,6 +89,13 @@ tfx analyze plan.json --region eu-west-1
 ```bash
 tfx analyze plan.json --format json
 tfx analyze plan.json --format json | jq '.summary'
+```
+
+**Enforce custom cost-allocation tags:**
+
+```bash
+tfx analyze plan.json --required-tags required-tags.txt
+tfx cfn changeset.json --template template.json --required-tags required-tags.txt
 ```
 
 ---
@@ -390,7 +399,24 @@ The CFN fixture with template surfaces: open SSH security group (critical), RDS 
 |---|---|
 | Resource cost > 5× median of all priced resources in plan | warning |
 | Autoscaling group with no `max_size` set | warning |
-| New/updated resource missing required cost tags (`Env`, `Team`) | info |
+| New/updated resource missing required cost tags | info |
+
+The missing-tags rule checks for `Env` and `Team` by default. Override with `--required-tags`:
+
+```
+# required-tags.txt
+# Lines starting with # are comments. Blank lines are ignored.
+Env
+Team
+Owner
+CostCenter
+```
+
+```bash
+tfx analyze plan.json --required-tags required-tags.txt
+```
+
+Providing an empty file (comments only) disables the rule entirely.
 
 ---
 
