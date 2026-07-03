@@ -15,6 +15,13 @@ inputs:
     required: false
     default: ''
 
+  required-tags-file:
+    description: |
+      Path to a plain-text file listing required cost-allocation tag names (one per line, # comments ignored).
+      When provided, overrides the built-in Env/Team defaults. An empty file disables the missing-tags rule.
+    required: false
+    default: ''
+
   region:
     description: AWS region to use for pricing lookups.
     required: false
@@ -86,6 +93,11 @@ runs:
       run: |
         set +e
 
+        TAGS_ARG=""
+        if [ -n "${{ inputs.required-tags-file }}" ]; then
+          TAGS_ARG="--required-tags ${{ inputs.required-tags-file }}"
+        fi
+
         if [ -n "${{ inputs.cfn-changeset-file }}" ]; then
           # CloudFormation mode
           TEMPLATE_ARG=""
@@ -95,6 +107,7 @@ runs:
 
           "${{ github.action_path }}/tfx" cfn "${{ inputs.cfn-changeset-file }}" \
             $TEMPLATE_ARG \
+            $TAGS_ARG \
             --format json \
             --region "${{ inputs.region }}" \
             > /tmp/tfx-report.json
@@ -102,18 +115,21 @@ runs:
 
           "${{ github.action_path }}/tfx" cfn "${{ inputs.cfn-changeset-file }}" \
             $TEMPLATE_ARG \
+            $TAGS_ARG \
             --format text \
             --region "${{ inputs.region }}" \
             > /tmp/tfx-report.txt || true
         else
           # Terraform mode
           "${{ github.action_path }}/tfx" analyze "${{ inputs.plan-file }}" \
+            $TAGS_ARG \
             --format json \
             --region "${{ inputs.region }}" \
             > /tmp/tfx-report.json
           TFX_EXIT=$?
 
           "${{ github.action_path }}/tfx" analyze "${{ inputs.plan-file }}" \
+            $TAGS_ARG \
             --format text \
             --region "${{ inputs.region }}" \
             > /tmp/tfx-report.txt || true

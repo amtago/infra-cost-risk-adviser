@@ -313,6 +313,7 @@ jobs:
 | `plan-file` | one of | — | Path to `terraform show -json` output |
 | `cfn-changeset-file` | one of | — | Path to `aws cloudformation describe-change-set` output |
 | `cfn-template-file` | | `''` | CloudFormation template JSON (optional; enables attribute-level rules) |
+| `required-tags-file` | | `''` | Path to a file listing required cost-allocation tags (one per line). Overrides built-in `Env`/`Team` defaults. Empty file disables the rule. |
 | `region` | | `us-east-1` | AWS region for pricing |
 | `github-token` | | `github.token` | Token to post PR comments |
 | `comment-on-pr` | | `true` | Post findings as a PR comment |
