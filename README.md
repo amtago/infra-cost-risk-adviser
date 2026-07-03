@@ -366,21 +366,6 @@ The CFN fixture with template surfaces: open SSH security group (critical), RDS 
 
 ---
 
-## Why not just use Infracost?
-
-Infracost is excellent at cost estimation breadth (1,100+ resource types). `tfx` doesn't compete on breadth — it goes deeper on the **risk** side with findings that are simultaneously a cost signal and a risk signal:
-
-| | `terraform plan` | Infracost | **tfx** |
-|---|---|---|---|
-| Cost estimation | ✗ | ✓ broad | ✓ AWS MVP |
-| Destructive-change warnings | partial | ✗ | ✓ |
-| Security misconfig | ✗ | via external policy | ✓ built-in |
-| **Cost-risk hybrid findings** | ✗ | ✗ | **✓** |
-
-Cost-risk hybrid examples: an instance costing 24× the plan median, an autoscaling group with no `max_size`, cost-allocation tags being dropped from a production resource.
-
----
-
 ## Rule reference
 
 ### Tier 1 — Destructive / data-loss
