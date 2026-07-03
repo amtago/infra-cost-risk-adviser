@@ -1,0 +1,38 @@
+{
+  "format_version": "1.0",
+  "resource_changes": [
+    {
+      "address": "aws_instance.api",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "type": "aws_instance",
+      "name": "api",
+      "change": {
+        "actions": ["no-op"],
+        "before": { "instance_type": "t3.medium", "tags": { "Env": "prod", "Team": "platform" } },
+        "after":  { "instance_type": "t3.medium", "tags": { "Env": "prod", "Team": "platform" } }
+      }
+    },
+    {
+      "address": "aws_db_instance.main",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "type": "aws_db_instance",
+      "name": "main",
+      "change": {
+        "actions": ["no-op"],
+        "before": { "instance_class": "db.t3.small", "deletion_protection": true, "storage_encrypted": true, "tags": { "Env": "prod", "Team": "platform" } },
+        "after":  { "instance_class": "db.t3.small", "deletion_protection": true, "storage_encrypted": true, "tags": { "Env": "prod", "Team": "platform" } }
+      }
+    },
+    {
+      "address": "aws_lb.frontend",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "type": "aws_lb",
+      "name": "frontend",
+      "change": {
+        "actions": ["no-op"],
+        "before": { "load_balancer_type": "application", "tags": { "Env": "prod", "Team": "platform" } },
+        "after":  { "load_balancer_type": "application", "tags": { "Env": "prod", "Team": "platform" } }
+      }
+    }
+  ]
+}

@@ -1,0 +1,318 @@
+# tfx — Terraform Plan Cost & Risk Analyzer
+
+`tfx` analyzes a `terraform plan` JSON file **before** `terraform apply` and gives you a single report covering cost delta, destructive-change warnings, and security misconfigs — including cost-risk hybrid findings that no other tool surfaces.
+
+---
+
+## Install
+
+### Option 1 — Build from source (recommended)
+
+Requires Go 1.21+. Check with `go version`.
+
+```bash
+git clone https://github.com/amt/tf-cost-risk
+cd tf-cost-risk
+go build -o tfx ./cli/
+```
+
+Move the binary somewhere on your `PATH`:
+
+```bash
+# macOS / Linux
+sudo mv tfx /usr/local/bin/tfx
+
+# or without sudo, into your home bin
+mkdir -p ~/.local/bin && mv tfx ~/.local/bin/tfx
+# make sure ~/.local/bin is in your PATH
+```
+
+Verify:
+
+```bash
+tfx version
+# tfx v0.1.0
+```
+
+### Option 2 — Run without installing
+
+```bash
+go run ./cli/ analyze plan.json
+```
+
+---
+
+## Quick start
+
+**Step 1 — generate a plan JSON file from your Terraform project:**
+
+```bash
+cd your-terraform-directory/
+terraform init          # if not already initialized
+terraform plan -out tfplan.binary
+terraform show -json tfplan.binary > plan.json
+```
+
+**Step 2 — run tfx:**
+
+```bash
+tfx analyze plan.json
+```
+
+That's it. No API keys, no network access, no configuration required.
+
+---
+
+## Usage
+
+```
+tfx analyze <plan.json> [flags]
+tfx version
+tfx --help
+
+Flags:
+  --format text|json   Output format (default: text)
+  --region <region>    AWS region for pricing lookups (default: us-east-1)
+```
+
+**Use a different region:**
+
+```bash
+tfx analyze plan.json --region eu-west-1
+```
+
+**Get JSON output (for CI pipelines or scripting):**
+
+```bash
+tfx analyze plan.json --format json
+tfx analyze plan.json --format json | jq '.summary'
+```
+
+---
+
+## Example output
+
+### Clean plan
+
+```
+$ tfx analyze plan.json
+
+This plan has no net cost change and has no issues found.
+
+Cost table: no resources with pricing data.
+
+Findings: none.
+```
+
+### Cost increase with oversized resource warning
+
+```
+$ tfx analyze plan.json
+
+This plan adds $619.62/mo and has 2 issue(s) found.
+Note: 1 resource(s) have unknown cost (usage-based pricing; see table below).
+
+Cost breakdown ($/mo):
+  Resource                                                Change     $/mo
+  --------------------------------------------------------------------------------
+  aws_db_instance.main                                    + create   $12.41
+  aws_instance.app                                        + create   $560.64
+  aws_instance.worker                                     + create   $30.37
+  aws_lb.frontend                                         + create   $16.20
+  aws_s3_bucket.uploads                                   + create   unknown
+  --------------------------------------------------------------------------------
+                                                                      $619.62/mo net
+
+Findings (grouped by severity):
+
+  [WARNING]
+  • [cost-risk] aws_instance.app costs an estimated $560.64/mo, which is 24.1x the median
+    resource cost in this plan ($23.29/mo). Verify this instance size is intentional.
+
+  [INFO]
+  • [cost-risk] aws_instance.app is missing cost-allocation tag(s): Team.
+```
+
+### Destructive changes (exits 2)
+
+```
+$ tfx analyze plan.json
+
+This plan adds $70.38/mo and has 2 critical issue(s) require attention.
+
+Cost breakdown ($/mo):
+  Resource                                                Change     $/mo
+  --------------------------------------------------------------------------------
+  aws_db_instance.prod                                    ± replace  $49.64
+  aws_ebs_volume.data                                     - delete   $40.00
+  aws_instance.api                                        ~ update   $60.74
+  --------------------------------------------------------------------------------
+                                                                      $110.38 added
+                                                                     -$40.00 removed
+                                                                      $70.38/mo net
+
+Findings (grouped by severity):
+
+  [CRITICAL]
+  • [destructive] aws_db_instance.prod will be destroyed and recreated (replace), causing downtime.
+  • [destructive] aws_ebs_volume.data will be permanently deleted.
+
+  [WARNING]
+  • [destructive] aws_db_instance.prod does not have deletion protection enabled.
+```
+
+### Security misconfig (exits 2)
+
+```
+$ tfx analyze plan.json
+
+This plan adds $49.64/mo and has 4 critical issue(s) require attention.
+
+Findings (grouped by severity):
+
+  [CRITICAL]
+  • [security] aws_security_group.bastion allows inbound SSH (port 22) from 0.0.0.0/0.
+  • [security] aws_security_group.db allows inbound PostgreSQL (port 5432) from 0.0.0.0/0.
+  • [security] aws_s3_bucket.reports has a public ACL ("public-read").
+  • [security] aws_iam_role_policy.lambda_exec contains Action:"*" (full AWS permissions).
+```
+
+---
+
+## CI / GitHub Actions
+
+`tfx` exits `2` when critical findings are present, so you can gate a pipeline on it.
+
+```yaml
+# .github/workflows/terraform.yml
+- name: Generate plan
+  run: |
+    terraform plan -out tfplan.binary
+    terraform show -json tfplan.binary > plan.json
+
+- name: Analyze plan with tfx
+  run: tfx analyze plan.json --format json | tee tfx-report.json
+  continue-on-error: true   # capture exit code without failing the step
+
+- name: Upload report
+  uses: actions/upload-artifact@v4
+  with:
+    name: tfx-report
+    path: tfx-report.json
+
+- name: Fail on critical findings
+  run: |
+    criticals=$(jq '.summary.finding_counts.critical // 0' tfx-report.json)
+    if [ "$criticals" -gt 0 ]; then
+      echo "tfx: $criticals critical finding(s). Review tfx-report.json before applying."
+      exit 1
+    fi
+```
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | Clean plan, or warnings/info only |
+| `1` | Error (unreadable file, bad JSON, missing argument) |
+| `2` | One or more **critical** findings |
+
+---
+
+## Try the demo fixtures
+
+The repo ships four ready-made plan fixtures. Run them to see all finding types:
+
+```bash
+# Clone and build first
+git clone https://github.com/amt/tf-cost-risk && cd tf-cost-risk
+go build -o tfx ./cli/
+
+tfx analyze fixtures/clean_plan.json
+tfx analyze fixtures/cost_increase_plan.json
+tfx analyze fixtures/destructive_plan.json
+tfx analyze fixtures/security_misconfig_plan.json
+
+# Or run all four at once
+bash demo.sh ./tfx
+```
+
+---
+
+## Why not just use Infracost?
+
+Infracost is excellent at cost estimation breadth (1,100+ resource types). `tfx` doesn't compete on breadth — it goes deeper on the **risk** side with findings that are simultaneously a cost signal and a risk signal:
+
+| | `terraform plan` | Infracost | **tfx** |
+|---|---|---|---|
+| Cost estimation | ✗ | ✓ broad | ✓ AWS MVP |
+| Destructive-change warnings | partial | ✗ | ✓ |
+| Security misconfig | ✗ | via external policy | ✓ built-in |
+| **Cost-risk hybrid findings** | ✗ | ✗ | **✓** |
+
+Cost-risk hybrid examples: an instance costing 24× the plan median, an autoscaling group with no `max_size`, cost-allocation tags being dropped from a production resource.
+
+---
+
+## Rule reference
+
+### Tier 1 — Destructive / data-loss
+| Rule | Severity |
+|---|---|
+| Resource will be deleted | warning |
+| Resource will be replaced (destroy + recreate) | warning |
+| Stateful resource (RDS, EBS, DynamoDB, ElastiCache) deleted or replaced | **critical** |
+| Stateful resource missing `deletion_protection` | warning |
+
+### Tier 2 — Security misconfig
+| Rule | Severity |
+|---|---|
+| Security group allows `0.0.0.0/0` on SSH/RDP/DB ports | **critical** |
+| S3 bucket with `public-read` or `public-read-write` ACL | **critical** |
+| IAM policy with `Action: "*"` | **critical** |
+| RDS / EBS without encryption at rest | warning |
+| IAM policy with `Resource: "*"` | warning |
+
+### Tier 3 — Cost-risk hybrid
+| Rule | Severity |
+|---|---|
+| Resource cost > 5× median of all priced resources in plan | warning |
+| Autoscaling group with no `max_size` set | warning |
+| New/updated resource missing required cost tags (`Env`, `Team`) | info |
+
+---
+
+## Supported AWS resources
+
+Prices are approximate us-east-1 on-demand rates, stored as a static snapshot in `pricing/providers/aws/prices.go`. No API keys or internet access required. Resources with usage-based pricing are reported as `unknown` rather than `$0`.
+
+| Resource | Pricing | Rules |
+|---|---|---|
+| `aws_instance` | T3 / M5 / C5 / R5 | Tier 1, 3 |
+| `aws_db_instance` | T3 / R6G / M6G | Tier 1, 2, 3 |
+| `aws_rds_cluster` | R6G / R5 / T3 | Tier 1, 2, 3 |
+| `aws_ebs_volume` | per GB — gp2/gp3/io1/io2/st1/sc1 | Tier 1, 2 |
+| `aws_elasticache_cluster` | T3 / R6G / M6G | Tier 1 |
+| `aws_elasticache_replication_group` | T3 / R6G / M6G | Tier 1 |
+| `aws_lb` / `aws_alb` | base rate | Tier 3 |
+| `aws_s3_bucket` | usage-based → unknown | Tier 2, 3 |
+| `aws_dynamodb_table` | usage-based → unknown | Tier 1, 3 |
+| `aws_lambda_function` | usage-based → unknown | Tier 3 |
+| `aws_security_group` | n/a | Tier 2 |
+| `aws_iam_policy` / `aws_iam_role_policy` | n/a | Tier 2 |
+| `aws_autoscaling_group` | n/a | Tier 3 |
+
+GCP and Azure are stubbed with explicit `not implemented` errors — designed for extension without touching the core pipeline.
+
+---
+
+## Development
+
+```bash
+go test ./...          # 115 tests
+go build -o tfx ./cli/
+```
+
+**Adding a price entry:** edit `pricing/providers/aws/prices.go` — no build step, just update the map and rebuild.
+
+**Adding a rule:** implement the `rules.Rule` interface and register it in `rules/providers/aws/aws.go:AllRules()`.

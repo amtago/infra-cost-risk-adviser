@@ -1,0 +1,77 @@
+{
+  "format_version": "1.0",
+  "resource_changes": [
+    {
+      "address": "aws_instance.app",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "type": "aws_instance",
+      "name": "app",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "instance_type": "m5.4xlarge",
+          "tags": { "Env": "prod" }
+        }
+      }
+    },
+    {
+      "address": "aws_instance.worker",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "type": "aws_instance",
+      "name": "worker",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "instance_type": "t3.medium",
+          "tags": { "Env": "prod", "Team": "platform" }
+        }
+      }
+    },
+    {
+      "address": "aws_db_instance.main",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "type": "aws_db_instance",
+      "name": "main",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "instance_class": "db.t3.micro",
+          "deletion_protection": true,
+          "storage_encrypted": true,
+          "tags": { "Env": "prod", "Team": "platform" }
+        }
+      }
+    },
+    {
+      "address": "aws_s3_bucket.uploads",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "type": "aws_s3_bucket",
+      "name": "uploads",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "acl": "private",
+          "tags": { "Env": "prod", "Team": "platform" }
+        }
+      }
+    },
+    {
+      "address": "aws_lb.frontend",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "type": "aws_lb",
+      "name": "frontend",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "load_balancer_type": "application",
+          "tags": { "Env": "prod", "Team": "platform" }
+        }
+      }
+    }
+  ]
+}

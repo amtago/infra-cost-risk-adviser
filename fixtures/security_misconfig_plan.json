@@ -1,0 +1,91 @@
+{
+  "format_version": "1.0",
+  "resource_changes": [
+    {
+      "address": "aws_security_group.bastion",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "type": "aws_security_group",
+      "name": "bastion",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "ingress": [
+            {
+              "from_port": 22,
+              "to_port": 22,
+              "protocol": "tcp",
+              "cidr_blocks": ["0.0.0.0/0"],
+              "ipv6_cidr_blocks": ["::/0"]
+            }
+          ],
+          "tags": { "Env": "prod", "Team": "platform" }
+        }
+      }
+    },
+    {
+      "address": "aws_security_group.db",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "type": "aws_security_group",
+      "name": "db",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "ingress": [
+            {
+              "from_port": 5432,
+              "to_port": 5432,
+              "protocol": "tcp",
+              "cidr_blocks": ["0.0.0.0/0"]
+            }
+          ],
+          "tags": { "Env": "prod", "Team": "platform" }
+        }
+      }
+    },
+    {
+      "address": "aws_s3_bucket.reports",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "type": "aws_s3_bucket",
+      "name": "reports",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "acl": "public-read",
+          "tags": { "Env": "prod", "Team": "platform" }
+        }
+      }
+    },
+    {
+      "address": "aws_iam_role_policy.lambda_exec",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "type": "aws_iam_role_policy",
+      "name": "lambda_exec",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "policy": "{\"Statement\":[{\"Effect\":\"Allow\",\"Action\":\"*\",\"Resource\":\"*\"}]}"
+        }
+      }
+    },
+    {
+      "address": "aws_db_instance.analytics",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "type": "aws_db_instance",
+      "name": "analytics",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "instance_class": "db.t3.medium",
+          "deletion_protection": false,
+          "storage_encrypted": false,
+          "tags": { "Env": "prod", "Team": "platform" }
+        }
+      }
+    }
+  ]
+}

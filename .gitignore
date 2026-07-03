@@ -1,0 +1,8 @@
+# compiled binary
+tfx
+
+# macOS
+.DS_Store
+
+# test artifacts
+*.out
