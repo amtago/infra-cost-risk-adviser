@@ -1,0 +1,72 @@
+{
+  "ChangeSetName": "prod-update-v2",
+  "StackName": "prod-api-stack",
+  "Status": "CREATE_COMPLETE",
+  "Changes": [
+    {
+      "Type": "Resource",
+      "ResourceChange": {
+        "Action": "Add",
+        "LogicalResourceId": "AppServer",
+        "ResourceType": "AWS::EC2::Instance",
+        "Replacement": "False"
+      }
+    },
+    {
+      "Type": "Resource",
+      "ResourceChange": {
+        "Action": "Add",
+        "LogicalResourceId": "Database",
+        "ResourceType": "AWS::RDS::DBInstance",
+        "Replacement": "False"
+      }
+    },
+    {
+      "Type": "Resource",
+      "ResourceChange": {
+        "Action": "Modify",
+        "LogicalResourceId": "ProdDB",
+        "ResourceType": "AWS::RDS::DBInstance",
+        "Replacement": "True",
+        "PhysicalResourceId": "prod-db-instance"
+      }
+    },
+    {
+      "Type": "Resource",
+      "ResourceChange": {
+        "Action": "Remove",
+        "LogicalResourceId": "OldVolume",
+        "ResourceType": "AWS::EC2::Volume",
+        "Replacement": "False",
+        "PhysicalResourceId": "vol-0abc123"
+      }
+    },
+    {
+      "Type": "Resource",
+      "ResourceChange": {
+        "Action": "Add",
+        "LogicalResourceId": "BastionSG",
+        "ResourceType": "AWS::EC2::SecurityGroup",
+        "Replacement": "False"
+      }
+    },
+    {
+      "Type": "Resource",
+      "ResourceChange": {
+        "Action": "Add",
+        "LogicalResourceId": "AssetsBucket",
+        "ResourceType": "AWS::S3::Bucket",
+        "Replacement": "False"
+      }
+    },
+    {
+      "Type": "Resource",
+      "ResourceChange": {
+        "Action": "Add",
+        "LogicalResourceId": "LambdaExecRole",
+        "ResourceType": "AWS::IAM::Role",
+        "Replacement": "False"
+      }
+    }
+  ]
+}

@@ -1,0 +1,98 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "prod-api-stack — API tier with RDS and supporting resources",
+  "Resources": {
+    "AppServer": {
+      "Type": "AWS::EC2::Instance",
+      "Properties": {
+        "InstanceType": "m5.4xlarge",
+        "ImageId": "ami-0c55b159cbfafe1f0",
+        "Tags": [
+          { "Key": "Env",  "Value": "prod" },
+          { "Key": "Team", "Value": "platform" }
+        ]
+      }
+    },
+    "Database": {
+      "Type": "AWS::RDS::DBInstance",
+      "Properties": {
+        "DBInstanceClass": "db.t3.micro",
+        "Engine": "postgres",
+        "StorageEncrypted": true,
+        "DeletionProtection": true,
+        "Tags": [
+          { "Key": "Env",  "Value": "prod" },
+          { "Key": "Team", "Value": "platform" }
+        ]
+      }
+    },
+    "ProdDB": {
+      "Type": "AWS::RDS::DBInstance",
+      "Properties": {
+        "DBInstanceClass": "db.t3.medium",
+        "Engine": "postgres",
+        "StorageEncrypted": false,
+        "DeletionProtection": false,
+        "Tags": [
+          { "Key": "Env", "Value": "prod" }
+        ]
+      }
+    },
+    "OldVolume": {
+      "Type": "AWS::EC2::Volume",
+      "Properties": {
+        "VolumeType": "gp3",
+        "Size": 200,
+        "Encrypted": true,
+        "Tags": [
+          { "Key": "Env",  "Value": "prod" },
+          { "Key": "Team", "Value": "platform" }
+        ]
+      }
+    },
+    "BastionSG": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Bastion host security group",
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": 22,
+            "ToPort": 22,
+            "CidrIp": "0.0.0.0/0"
+          }
+        ],
+        "Tags": [
+          { "Key": "Env",  "Value": "prod" },
+          { "Key": "Team", "Value": "platform" }
+        ]
+      }
+    },
+    "AssetsBucket": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": {
+        "AccessControl": "PublicRead",
+        "Tags": [
+          { "Key": "Env",  "Value": "prod" },
+          { "Key": "Team", "Value": "platform" }
+        ]
+      }
+    },
+    "LambdaExecRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [{ "Effect": "Allow", "Principal": { "Service": "lambda.amazonaws.com" }, "Action": "sts:AssumeRole" }]
+        },
+        "Policies": [
+          {
+            "PolicyName": "LambdaFullAccess",
+            "PolicyDocument": {
+              "Statement": [{ "Effect": "Allow", "Action": "*", "Resource": "*" }]
+            }
+          }
+        ]
+      }
+    }
+  }
+}

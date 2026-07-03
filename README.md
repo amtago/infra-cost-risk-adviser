@@ -67,6 +67,7 @@ That's it. No API keys, no network access, no configuration required.
 
 ```
 tfx analyze <plan.json> [flags]
+tfx cfn <changeset.json> [--template template.json] [flags]
 tfx version
 tfx --help
 
@@ -87,6 +88,40 @@ tfx analyze plan.json --region eu-west-1
 tfx analyze plan.json --format json
 tfx analyze plan.json --format json | jq '.summary'
 ```
+
+---
+
+## CloudFormation support
+
+`tfx` can analyze AWS CloudFormation change sets using the same pipeline — pricing, destructive-change detection, security rules, and cost-risk hybrid findings all work identically.
+
+**Step 1 — create and describe a change set:**
+
+```bash
+aws cloudformation create-change-set \
+  --stack-name my-stack \
+  --change-set-name cs-1 \
+  --template-body file://template.json \
+  --capabilities CAPABILITY_NAMED_IAM
+
+aws cloudformation describe-change-set \
+  --stack-name my-stack \
+  --change-set-name cs-1 > changeset.json
+```
+
+**Step 2 — run tfx:**
+
+```bash
+# Change set only (resource type + action, no attribute details)
+tfx cfn changeset.json
+
+# With the template for full property-level analysis (recommended)
+tfx cfn changeset.json --template template.json
+```
+
+With `--template`, tfx reads resource properties directly from the template so security rules (open security groups, public S3 ACLs, wildcard IAM, missing encryption) and cost-risk rules (oversized instances, missing tags, unbounded autoscaling) fire on real attribute values.
+
+Without `--template`, tfx can still report which resources are being created, replaced, or deleted and flag destructive changes.
 
 ---
 
@@ -264,6 +299,9 @@ tfx analyze fixtures/security_misconfig_plan.json
 
 # Or run all four at once
 bash demo.sh ./tfx
+
+# CloudFormation change set fixture (with template for full rule coverage)
+tfx cfn fixtures/cfn_changeset.json --template fixtures/cfn_template.json
 ```
 
 ---
