@@ -36,7 +36,7 @@ Usage:
   tfx version
 
 Flags:
-  --format text|json          Output format (default: text)
+  --format text|json|markdown Output format (default: text)
   --region <region>           AWS region to use for pricing lookups (default: us-east-1)
   --required-tags <file.txt>  Path to a file listing required cost-allocation tags (one per line).
                               When provided, overrides the built-in Env/Team defaults.
@@ -102,8 +102,8 @@ func runAnalyze(args []string) {
 	}
 
 	format := strings.ToLower(*formatFlag)
-	if format != "text" && format != "json" {
-		fmt.Fprintf(os.Stderr, "error: --format must be 'text' or 'json', got %q\n", *formatFlag)
+	if format != "text" && format != "json" && format != "markdown" {
+		fmt.Fprintf(os.Stderr, "error: --format must be 'text', 'json', or 'markdown', got %q\n", *formatFlag)
 		os.Exit(1)
 	}
 
@@ -143,8 +143,8 @@ func runCFN(args []string) {
 	}
 
 	format := strings.ToLower(*formatFlag)
-	if format != "text" && format != "json" {
-		fmt.Fprintf(os.Stderr, "error: --format must be 'text' or 'json', got %q\n", *formatFlag)
+	if format != "text" && format != "json" && format != "markdown" {
+		fmt.Fprintf(os.Stderr, "error: --format must be 'text', 'json', or 'markdown', got %q\n", *formatFlag)
 		os.Exit(1)
 	}
 
@@ -241,6 +241,8 @@ func render(r report.Report, format string) {
 	switch format {
 	case "json":
 		formatter = &report.JSONFormatter{}
+	case "markdown":
+		formatter = &report.MarkdownFormatter{}
 	default:
 		formatter = &report.TextFormatter{}
 	}

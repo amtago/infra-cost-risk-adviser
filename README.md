@@ -72,7 +72,7 @@ tfx version
 tfx --help
 
 Flags:
-  --format text|json          Output format (default: text)
+  --format text|json|markdown Output format (default: text)
   --region <region>           AWS region for pricing lookups (default: us-east-1)
   --required-tags <file.txt>  Path to a file listing required cost-allocation tags (one per line).
                               Overrides the built-in Env/Team defaults. Empty file disables the rule.
@@ -89,6 +89,13 @@ tfx analyze plan.json --region eu-west-1
 ```bash
 tfx analyze plan.json --format json
 tfx analyze plan.json --format json | jq '.summary'
+```
+
+**Get Markdown output (for GitHub Step Summaries, wikis, or Notion):**
+
+```bash
+tfx analyze plan.json --format markdown
+tfx analyze plan.json --format markdown >> "$GITHUB_STEP_SUMMARY"
 ```
 
 **Enforce custom cost-allocation tags:**
@@ -363,6 +370,8 @@ jobs:
 | `fail-on-critical` | | `true` | Exit non-zero on critical findings |
 
 **Action outputs:** `net-delta-usd`, `critical-count`, `warning-count`, `report-json`
+
+The action automatically writes a formatted Markdown report to the [GitHub Actions Step Summary](https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/workflow-commands-for-github-actions#adding-a-job-summary) (`$GITHUB_STEP_SUMMARY`) on every run — visible in the Actions UI without needing a PR.
 
 ### Option 2 — Run the CLI directly
 
