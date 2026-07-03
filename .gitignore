@@ -6,3 +6,5 @@ tfx
 
 # test artifacts
 *.out
+
+CLAUDE.md
