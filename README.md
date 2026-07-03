@@ -181,32 +181,61 @@ Findings (grouped by severity):
 
 ## CI / GitHub Actions
 
-`tfx` exits `2` when critical findings are present, so you can gate a pipeline on it.
+### Option 1 — Use the tfx GitHub Action (recommended)
+
+Add this to your repo's workflow. It builds `tfx`, runs it against your plan, and posts the report as a PR comment. The step fails if critical findings are found.
 
 ```yaml
 # .github/workflows/terraform.yml
-- name: Generate plan
-  run: |
-    terraform plan -out tfplan.binary
-    terraform show -json tfplan.binary > plan.json
+permissions:
+  contents: read
+  pull-requests: write   # required to post PR comments
 
+jobs:
+  tfx:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Terraform plan
+        run: |
+          terraform init
+          terraform plan -out tfplan.binary
+          terraform show -json tfplan.binary > plan.json
+
+      - name: Run tfx
+        uses: amtago/infra-cost-risk-adviser@main
+        with:
+          plan-file:        plan.json
+          region:           us-east-1
+          github-token:     ${{ secrets.GITHUB_TOKEN }}
+          comment-on-pr:    'true'
+          fail-on-critical: 'true'
+```
+
+**Action inputs:**
+
+| Input | Required | Default | Description |
+|---|---|---|---|
+| `plan-file` | ✓ | — | Path to `terraform show -json` output |
+| `region` | | `us-east-1` | AWS region for pricing |
+| `github-token` | | `github.token` | Token to post PR comments |
+| `comment-on-pr` | | `true` | Post findings as a PR comment |
+| `fail-on-critical` | | `true` | Exit non-zero on critical findings |
+
+**Action outputs:** `net-delta-usd`, `critical-count`, `warning-count`, `report-json`
+
+### Option 2 — Run the CLI directly
+
+```yaml
 - name: Analyze plan with tfx
   run: tfx analyze plan.json --format json | tee tfx-report.json
-  continue-on-error: true   # capture exit code without failing the step
-
-- name: Upload report
-  uses: actions/upload-artifact@v4
-  with:
-    name: tfx-report
-    path: tfx-report.json
+  continue-on-error: true
 
 - name: Fail on critical findings
   run: |
     criticals=$(jq '.summary.finding_counts.critical // 0' tfx-report.json)
-    if [ "$criticals" -gt 0 ]; then
-      echo "tfx: $criticals critical finding(s). Review tfx-report.json before applying."
-      exit 1
-    fi
+    [ "$criticals" -eq 0 ] || exit 1
 ```
 
 ### Exit codes

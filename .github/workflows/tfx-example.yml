@@ -1,0 +1,44 @@
+name: Terraform Cost & Risk Analysis
+
+on:
+  pull_request:
+    paths:
+      - '**.tf'
+      - '**.tfvars'
+
+permissions:
+  contents: read
+  pull-requests: write  # required to post PR comments
+
+jobs:
+  tfx:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform init
+        run: terraform init
+        working-directory: ./terraform   # adjust to your tf root
+
+      - name: Terraform plan
+        run: |
+          terraform plan -out tfplan.binary
+          terraform show -json tfplan.binary > plan.json
+        working-directory: ./terraform
+        env:
+          AWS_ACCESS_KEY_ID:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION:            us-east-1
+
+      - name: Run tfx
+        uses: amtago/infra-cost-risk-adviser@main
+        with:
+          plan-file:      ./terraform/plan.json
+          region:         us-east-1
+          github-token:   ${{ secrets.GITHUB_TOKEN }}
+          comment-on-pr:  'true'
+          fail-on-critical: 'true'
