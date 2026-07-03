@@ -218,7 +218,9 @@ Findings (grouped by severity):
 
 ### Option 1 — Use the tfx GitHub Action (recommended)
 
-Add this to your repo's workflow. It builds `tfx`, runs it against your plan, and posts the report as a PR comment. The step fails if critical findings are found.
+The action supports both Terraform plan files and CloudFormation change sets. Provide one of `plan-file` or `cfn-changeset-file` — not both.
+
+**Terraform:**
 
 ```yaml
 # .github/workflows/terraform.yml
@@ -248,11 +250,59 @@ jobs:
           fail-on-critical: 'true'
 ```
 
+**CloudFormation:**
+
+```yaml
+# .github/workflows/cloudformation.yml
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write   # for AWS OIDC auth
+
+jobs:
+  tfx:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::123456789012:role/github-actions
+          aws-region: us-east-1
+
+      - name: Create and describe change set
+        run: |
+          aws cloudformation create-change-set \
+            --stack-name my-stack \
+            --change-set-name cs-${{ github.run_id }} \
+            --template-body file://template.json \
+            --capabilities CAPABILITY_NAMED_IAM
+          aws cloudformation wait change-set-create-complete \
+            --stack-name my-stack \
+            --change-set-name cs-${{ github.run_id }}
+          aws cloudformation describe-change-set \
+            --stack-name my-stack \
+            --change-set-name cs-${{ github.run_id }} > changeset.json
+
+      - name: Run tfx
+        uses: amtago/infra-cost-risk-adviser@main
+        with:
+          cfn-changeset-file: changeset.json
+          cfn-template-file:  template.json
+          region:             us-east-1
+          github-token:       ${{ secrets.GITHUB_TOKEN }}
+          comment-on-pr:      'true'
+          fail-on-critical:   'true'
+```
+
 **Action inputs:**
 
 | Input | Required | Default | Description |
 |---|---|---|---|
-| `plan-file` | ✓ | — | Path to `terraform show -json` output |
+| `plan-file` | one of | — | Path to `terraform show -json` output |
+| `cfn-changeset-file` | one of | — | Path to `aws cloudformation describe-change-set` output |
+| `cfn-template-file` | | `''` | CloudFormation template JSON (optional; enables attribute-level rules) |
 | `region` | | `us-east-1` | AWS region for pricing |
 | `github-token` | | `github.token` | Token to post PR comments |
 | `comment-on-pr` | | `true` | Post findings as a PR comment |

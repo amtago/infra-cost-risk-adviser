@@ -1,10 +1,19 @@
 name: tfx — Terraform Cost & Risk Analyzer
-description: Analyzes a terraform plan JSON file for cost delta, destructive changes, and security misconfigs. Posts findings as a PR comment.
+description: Analyzes a terraform plan or CloudFormation change set for cost delta, destructive changes, and security misconfigs. Posts findings as a PR comment.
 
 inputs:
   plan-file:
-    description: Path to the terraform plan JSON file (output of `terraform show -json`).
-    required: true
+    description: Path to the terraform plan JSON file (output of `terraform show -json`). Mutually exclusive with cfn-changeset-file.
+    required: false
+
+  cfn-changeset-file:
+    description: Path to a CloudFormation change set JSON file (output of `aws cloudformation describe-change-set`). Mutually exclusive with plan-file.
+    required: false
+
+  cfn-template-file:
+    description: Path to the CloudFormation template JSON file. Optional but recommended — enables attribute-level rule coverage (security groups, encryption, tags, etc.).
+    required: false
+    default: ''
 
   region:
     description: AWS region to use for pricing lookups.
@@ -46,6 +55,18 @@ outputs:
 runs:
   using: composite
   steps:
+    - name: Validate inputs
+      shell: bash
+      run: |
+        if [ -z "${{ inputs.plan-file }}" ] && [ -z "${{ inputs.cfn-changeset-file }}" ]; then
+          echo "::error::Either plan-file or cfn-changeset-file must be provided."
+          exit 1
+        fi
+        if [ -n "${{ inputs.plan-file }}" ] && [ -n "${{ inputs.cfn-changeset-file }}" ]; then
+          echo "::error::plan-file and cfn-changeset-file are mutually exclusive. Provide one, not both."
+          exit 1
+        fi
+
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
@@ -64,11 +85,40 @@ runs:
       shell: bash
       run: |
         set +e
-        "${{ github.action_path }}/tfx" analyze "${{ inputs.plan-file }}" \
-          --format json \
-          --region "${{ inputs.region }}" \
-          > /tmp/tfx-report.json
-        TFX_EXIT=$?
+
+        if [ -n "${{ inputs.cfn-changeset-file }}" ]; then
+          # CloudFormation mode
+          TEMPLATE_ARG=""
+          if [ -n "${{ inputs.cfn-template-file }}" ]; then
+            TEMPLATE_ARG="--template ${{ inputs.cfn-template-file }}"
+          fi
+
+          "${{ github.action_path }}/tfx" cfn "${{ inputs.cfn-changeset-file }}" \
+            $TEMPLATE_ARG \
+            --format json \
+            --region "${{ inputs.region }}" \
+            > /tmp/tfx-report.json
+          TFX_EXIT=$?
+
+          "${{ github.action_path }}/tfx" cfn "${{ inputs.cfn-changeset-file }}" \
+            $TEMPLATE_ARG \
+            --format text \
+            --region "${{ inputs.region }}" \
+            > /tmp/tfx-report.txt || true
+        else
+          # Terraform mode
+          "${{ github.action_path }}/tfx" analyze "${{ inputs.plan-file }}" \
+            --format json \
+            --region "${{ inputs.region }}" \
+            > /tmp/tfx-report.json
+          TFX_EXIT=$?
+
+          "${{ github.action_path }}/tfx" analyze "${{ inputs.plan-file }}" \
+            --format text \
+            --region "${{ inputs.region }}" \
+            > /tmp/tfx-report.txt || true
+        fi
+
         set -e
 
         # Extract summary fields
@@ -88,12 +138,6 @@ runs:
           echo "TFX_EOF"
         } >> "$GITHUB_OUTPUT"
 
-        # Also run in text format for the PR comment
-        "${{ github.action_path }}/tfx" analyze "${{ inputs.plan-file }}" \
-          --format text \
-          --region "${{ inputs.region }}" \
-          > /tmp/tfx-report.txt || true
-
         echo "TFX_EXIT=$TFX_EXIT"         >> "$GITHUB_ENV"
         echo "TFX_CRITICALS=$CRITICALS"   >> "$GITHUB_ENV"
 
@@ -111,8 +155,14 @@ runs:
           BADGE="✅ No critical findings"
         fi
 
+        if [ -n "${{ inputs.cfn-changeset-file }}" ]; then
+          REPORT_TITLE="tfx — CloudFormation Cost & Risk Report"
+        else
+          REPORT_TITLE="tfx — Terraform Cost & Risk Report"
+        fi
+
         BODY=$(cat <<COMMENT
-        ## tfx — Terraform Cost & Risk Report
+        ## $REPORT_TITLE
 
         $BADGE
 
@@ -143,7 +193,8 @@ runs:
     - name: Evaluate exit
       shell: bash
       run: |
+        INPUT_FILE="${{ inputs.plan-file }}${{ inputs.cfn-changeset-file }}"
         if [ "${{ inputs.fail-on-critical }}" = "true" ] && [ "${TFX_EXIT:-0}" = "2" ]; then
-          echo "::error::tfx found ${TFX_CRITICALS} critical issue(s). Review the PR comment or run: tfx analyze ${{ inputs.plan-file }}"
+          echo "::error::tfx found ${TFX_CRITICALS} critical issue(s). Review the PR comment or run tfx against: $INPUT_FILE"
           exit 2
         fi
