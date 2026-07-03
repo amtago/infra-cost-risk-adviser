@@ -8,6 +8,12 @@ set -euo pipefail
 
 TFX="${1:-./tfx}"
 
+# Auto-build if the binary doesn't exist
+if [ ! -x "$TFX" ]; then
+  echo "Building tfx..."
+  go build -o "${TFX}" ./cli/
+fi
+
 hr() { printf '\n%s\n' "$(printf '=%.0s' {1..60})"; }
 run() {
   local label="$1"; shift
