@@ -157,11 +157,14 @@ runs:
 
         if [ -n "${{ inputs.cfn-changeset-file }}" ]; then
           REPORT_TITLE="tfx — CloudFormation Cost & Risk Report"
+          MARKER="<!-- tfx-cfn -->"
         else
           REPORT_TITLE="tfx — Terraform Cost & Risk Report"
+          MARKER="<!-- tfx-terraform -->"
         fi
 
         BODY=$(cat <<COMMENT
+        $MARKER
         ## $REPORT_TITLE
 
         $BADGE
@@ -179,10 +182,10 @@ runs:
         COMMENT
         )
 
-        # Delete any previous tfx comment on this PR, then post fresh
+        # Delete any previous tfx comment of the same type on this PR, then post fresh
         gh api \
           "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
-          --jq '.[] | select(.body | startswith("## tfx")) | .id' \
+          --jq ".[] | select(.body | contains(\"$MARKER\")) | .id" \
         | xargs -I{} gh api --method DELETE \
           "repos/${{ github.repository }}/issues/comments/{}" || true
 
