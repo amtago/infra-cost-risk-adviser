@@ -13,6 +13,7 @@ import (
 	awspricing "github.com/amt/tf-cost-risk/pricing/providers/aws"
 	"github.com/amt/tf-cost-risk/report"
 	awsrules "github.com/amt/tf-cost-risk/rules/providers/aws"
+	"github.com/amt/tf-cost-risk/tags"
 
 	"github.com/amt/tf-cost-risk/normalizer"
 	"github.com/amt/tf-cost-risk/pricing"
@@ -29,9 +30,11 @@ Usage:
   tfx version
 
 Flags:
-  --format text|json   Output format (default: text)
-  --region <region>    AWS region to use for pricing lookups (default: us-east-1)
-  --help               Show this help
+  --format text|json          Output format (default: text)
+  --region <region>           AWS region to use for pricing lookups (default: us-east-1)
+  --required-tags <file.txt>  Path to a file listing required cost-allocation tags (one per line).
+                              When provided, overrides the built-in Env/Team defaults.
+  --help                      Show this help
 
 Examples:
   terraform show -json tfplan.binary > plan.json
@@ -68,6 +71,7 @@ func runAnalyze(args []string) {
 	fs := flag.NewFlagSet("analyze", flag.ExitOnError)
 	formatFlag := fs.String("format", "text", "Output format: text or json")
 	regionFlag := fs.String("region", "us-east-1", "AWS region for pricing lookups")
+	requiredTagsFlag := fs.String("required-tags", "", "Path to required-tags file")
 	fs.Usage = func() { fmt.Fprint(os.Stderr, usage) }
 
 	// Allow: analyze plan.json --format json  (file before flags)
@@ -103,7 +107,7 @@ func runAnalyze(args []string) {
 		os.Exit(1)
 	}
 
-	runPipeline(changes, *regionFlag, format)
+	runPipeline(changes, *regionFlag, format, loadRequiredTags(*requiredTagsFlag))
 }
 
 func runCFN(args []string) {
@@ -111,6 +115,7 @@ func runCFN(args []string) {
 	formatFlag := fs.String("format", "text", "Output format: text or json")
 	regionFlag := fs.String("region", "us-east-1", "AWS region for pricing lookups")
 	templateFlag := fs.String("template", "", "Path to the CloudFormation template JSON (optional)")
+	requiredTagsFlag := fs.String("required-tags", "", "Path to required-tags file")
 	fs.Usage = func() { fmt.Fprint(os.Stderr, usage) }
 
 	var changeSetFile string
@@ -143,12 +148,12 @@ func runCFN(args []string) {
 		os.Exit(1)
 	}
 
-	runPipeline(changes, *regionFlag, format)
+	runPipeline(changes, *regionFlag, format, loadRequiredTags(*requiredTagsFlag))
 }
 
 // runPipeline executes normalize → price → rules → report and renders output.
 // Shared by runAnalyze and runCFN.
-func runPipeline(changes []parser.ResourceChange, region, format string) {
+func runPipeline(changes []parser.ResourceChange, region, format string, requiredTags []string) {
 	if len(changes) == 0 {
 		render(report.Build(nil, nil), format)
 		return
@@ -172,7 +177,7 @@ func runPipeline(changes []parser.ResourceChange, region, format string) {
 	}
 
 	findings := awsrules.Run(
-		rules.EvaluateContext{Resources: resources, Estimates: estimates},
+		rules.EvaluateContext{Resources: resources, Estimates: estimates, RequiredTags: requiredTags},
 		awsrules.AllRules(),
 	)
 
@@ -182,6 +187,23 @@ func runPipeline(changes []parser.ResourceChange, region, format string) {
 	if r.Summary.CountBySeverity[rules.SeverityCritical] > 0 {
 		os.Exit(2)
 	}
+}
+
+// loadRequiredTags parses a required-tags file if a path is given.
+// Returns nil (not an empty slice) when no file is specified, so the rule falls back to its defaults.
+func loadRequiredTags(path string) []string {
+	if path == "" {
+		return nil // nil = no file → rule uses its own defaults
+	}
+	t, err := tags.LoadFile(path)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+	if t == nil {
+		return []string{} // non-nil empty slice → file provided but empty → rule disabled
+	}
+	return t
 }
 
 func render(r report.Report, format string) {

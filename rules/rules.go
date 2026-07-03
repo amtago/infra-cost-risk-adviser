@@ -34,8 +34,9 @@ type Finding struct {
 
 // EvaluateContext bundles everything a rule may need to produce findings.
 type EvaluateContext struct {
-	Resources []normalizer.NormalizedResource
-	Estimates []pricing.Estimate
+	Resources    []normalizer.NormalizedResource
+	Estimates    []pricing.Estimate
+	RequiredTags []string // overrides per-rule defaults when non-nil (even if empty)
 }
 
 // Rule evaluates the plan context and returns findings.

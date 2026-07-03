@@ -86,7 +86,13 @@ type MissingCostTagsRule struct {
 }
 
 func (r *MissingCostTagsRule) Evaluate(ctx rules.EvaluateContext) []rules.Finding {
-	if len(r.RequiredTags) == 0 {
+	// ctx.RequiredTags (from --required-tags file) takes precedence over the rule's defaults.
+	// A non-nil but empty slice means "no tags required" — skip entirely.
+	required := r.RequiredTags
+	if ctx.RequiredTags != nil {
+		required = ctx.RequiredTags
+	}
+	if len(required) == 0 {
 		return nil
 	}
 	var findings []rules.Finding
@@ -103,7 +109,7 @@ func (r *MissingCostTagsRule) Evaluate(ctx rules.EvaluateContext) []rules.Findin
 			continue
 		}
 		var missing []string
-		for _, tag := range r.RequiredTags {
+		for _, tag := range required {
 			if _, ok := nr.Tags[tag]; !ok {
 				missing = append(missing, tag)
 			}
