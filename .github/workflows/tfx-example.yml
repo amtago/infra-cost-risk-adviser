@@ -1,17 +1,20 @@
-name: Terraform Cost & Risk Analysis
+name: Cost & Risk Analysis (Terraform + CloudFormation)
 
 on:
   pull_request:
     paths:
       - '**.tf'
       - '**.tfvars'
+      - '**.json'   # pick up CFN templates and change sets
 
 permissions:
   contents: read
   pull-requests: write  # required to post PR comments
 
 jobs:
-  tfx:
+  # ── Terraform ────────────────────────────────────────────────────────────────
+  tfx-terraform:
+    name: Terraform plan analysis
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
@@ -37,8 +40,46 @@ jobs:
       - name: Run tfx
         uses: amtago/infra-cost-risk-adviser@main
         with:
-          plan-file:      ./terraform/plan.json
-          region:         us-east-1
-          github-token:   ${{ secrets.GITHUB_TOKEN }}
-          comment-on-pr:  'true'
+          plan-file:        ./terraform/plan.json
+          region:           us-east-1
+          github-token:     ${{ secrets.GITHUB_TOKEN }}
+          comment-on-pr:    'true'
           fail-on-critical: 'true'
+
+  # ── CloudFormation ────────────────────────────────────────────────────────────
+  tfx-cfn:
+    name: CloudFormation change set analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Create and describe change set
+        run: |
+          aws cloudformation create-change-set \
+            --stack-name my-stack \
+            --change-set-name cs-${{ github.run_id }} \
+            --template-body file://template.json \
+            --capabilities CAPABILITY_NAMED_IAM
+          aws cloudformation wait change-set-create-complete \
+            --stack-name my-stack \
+            --change-set-name cs-${{ github.run_id }}
+          aws cloudformation describe-change-set \
+            --stack-name my-stack \
+            --change-set-name cs-${{ github.run_id }} > changeset.json
+
+      - name: Run tfx
+        uses: amtago/infra-cost-risk-adviser@main
+        with:
+          cfn-changeset-file: changeset.json
+          cfn-template-file:  template.json
+          region:             us-east-1
+          github-token:       ${{ secrets.GITHUB_TOKEN }}
+          comment-on-pr:      'true'
+          fail-on-critical:   'true'

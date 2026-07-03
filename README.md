@@ -257,10 +257,11 @@ jobs:
 permissions:
   contents: read
   pull-requests: write
-  id-token: write   # for AWS OIDC auth
+  id-token: write   # required for AWS OIDC auth
 
 jobs:
-  tfx:
+  tfx-cfn:
+    name: CloudFormation change set analysis
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -268,7 +269,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::123456789012:role/github-actions
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: us-east-1
 
       - name: Create and describe change set
