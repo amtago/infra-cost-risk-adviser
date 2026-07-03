@@ -44,6 +44,9 @@ run "fixtures/destructive_plan.json"        fixtures/destructive_plan.json
 run "fixtures/security_misconfig_plan.json" fixtures/security_misconfig_plan.json
 run "fixtures/destructive_plan.json --format json" fixtures/destructive_plan.json --format json
 
+printf '\n── Azure fixtures ──────────────────────────────────────\n'
+run "fixtures/azure_plan.json" fixtures/azure_plan.json
+
 printf '\n── GCP fixtures ────────────────────────────────────────\n'
 run "fixtures/gcp_plan.json" fixtures/gcp_plan.json
 

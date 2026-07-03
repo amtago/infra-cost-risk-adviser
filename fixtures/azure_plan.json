@@ -1,0 +1,106 @@
+{
+  "format_version": "1.0",
+  "terraform_version": "1.6.0",
+  "resource_changes": [
+    {
+      "address": "azurerm_linux_virtual_machine.api",
+      "type": "azurerm_linux_virtual_machine",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "size": "Standard_D16s_v3",
+          "location": "East US",
+          "tags": { "env": "prod" }
+        }
+      }
+    },
+    {
+      "address": "azurerm_linux_virtual_machine.worker",
+      "type": "azurerm_linux_virtual_machine",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "size": "Standard_B2s",
+          "location": "East US",
+          "tags": { "env": "prod", "team": "platform" }
+        }
+      }
+    },
+    {
+      "address": "azurerm_mssql_database.orders",
+      "type": "azurerm_mssql_database",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "sku_name": "GP_Gen5_4",
+          "location": "East US",
+          "transparent_data_encryption_enabled": false,
+          "tags": { "env": "prod", "team": "platform" }
+        }
+      }
+    },
+    {
+      "address": "azurerm_network_security_group.bastion",
+      "type": "azurerm_network_security_group",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "location": "East US",
+          "security_rule": [
+            {
+              "direction": "Inbound",
+              "access": "Allow",
+              "source_address_prefix": "*",
+              "destination_port_range": "22"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "address": "azurerm_storage_account.assets",
+      "type": "azurerm_storage_account",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "location": "East US",
+          "allow_blob_public_access": true,
+          "enable_https_traffic_only": true,
+          "tags": {}
+        }
+      }
+    },
+    {
+      "address": "azurerm_managed_disk.data",
+      "type": "azurerm_managed_disk",
+      "change": {
+        "actions": ["delete"],
+        "before": {
+          "storage_account_type": "Premium_LRS",
+          "disk_size_gb": 512,
+          "location": "East US"
+        },
+        "after": null
+      }
+    },
+    {
+      "address": "azurerm_postgresql_flexible_server.analytics",
+      "type": "azurerm_postgresql_flexible_server",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "sku_name": "GP_Standard_D4s_v3",
+          "location": "East US",
+          "backup_retention_days": 3,
+          "tags": { "env": "prod", "team": "data" }
+        }
+      }
+    }
+  ]
+}

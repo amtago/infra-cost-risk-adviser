@@ -408,6 +408,9 @@ tfx analyze fixtures/cost_increase_plan.json
 tfx analyze fixtures/destructive_plan.json
 tfx analyze fixtures/security_misconfig_plan.json
 
+# Azure Terraform plan
+tfx analyze fixtures/azure_plan.json
+
 # GCP Terraform plan
 tfx analyze fixtures/gcp_plan.json
 
@@ -417,6 +420,8 @@ tfx cfn fixtures/cfn_changeset.json
 # CloudFormation — with template (full pricing + all three rule tiers)
 tfx cfn fixtures/cfn_changeset.json --template fixtures/cfn_template.json
 ```
+
+The Azure fixture surfaces: open SSH NSG rule (critical), public blob storage (critical), stateful managed disk deletion (critical), insufficient backup retention (warning), missing MSSQL TDE encryption (warning), oversized VM at 8× plan median (warning), and missing cost-allocation tags (info).
 
 The GCP fixture surfaces: open SSH firewall rule (critical), stateful Persistent Disk deletion (critical), Cloud SQL without SSL or backups (warning), Cloud Storage with legacy ACLs (warning), GKE node pool with unbounded autoscaling (warning), and missing cost-allocation labels (info).
 
@@ -430,32 +435,34 @@ Rules fire on the detected provider. AWS and GCP rules run in the same pipeline 
 
 ### Tier 1 — Destructive / data-loss
 
-| Rule | AWS | GCP | Severity |
-|---|---|---|---|
-| Resource will be deleted | ✓ | ✓ | warning |
-| Resource will be replaced (destroy + recreate) | ✓ | ✓ | warning |
-| Stateful resource deleted or replaced | ✓ | ✓ | **critical** |
-| Stateful resource missing `deletion_protection` | ✓ (RDS, DynamoDB) | ✓ (Cloud SQL) | warning |
+| Rule | AWS | GCP | Azure | Severity |
+|---|---|---|---|---|
+| Resource will be deleted | ✓ | ✓ | ✓ | warning |
+| Resource will be replaced (destroy + recreate) | ✓ | ✓ | ✓ | warning |
+| Stateful resource deleted or replaced | ✓ | ✓ | ✓ | **critical** |
+| Stateful resource missing `deletion_protection` | ✓ (RDS, DynamoDB) | ✓ (Cloud SQL) | — | warning |
+| Database `backup_retention_days` too low | — | — | ✓ (PostgreSQL, MySQL) | warning |
 
 ### Tier 2 — Security misconfig
 
-| Rule | AWS | GCP | Severity |
-|---|---|---|---|
-| Firewall open to `0.0.0.0/0` on SSH/RDP/DB ports | ✓ (security groups) | ✓ (compute firewall) | **critical** |
-| Public object storage | ✓ (S3 public ACL) | ✓ (uniform bucket-level access disabled) | **critical** / warning |
-| IAM policy with `Action: "*"` | ✓ | — | **critical** |
-| IAM policy with `Resource: "*"` | ✓ | — | warning |
-| Storage without encryption at rest | ✓ (RDS, EBS) | ✓ (Cloud SQL — SSL + backups) | warning |
+| Rule | AWS | GCP | Azure | Severity |
+|---|---|---|---|---|
+| Firewall open to internet on SSH/RDP/DB ports | ✓ (security groups) | ✓ (compute firewall) | ✓ (NSG) | **critical** |
+| Public object storage | ✓ (S3 public ACL) | ✓ (uniform bucket-level access) | ✓ (allow_blob_public_access) | **critical** |
+| Storage without HTTPS enforcement | — | — | ✓ (storage account) | warning |
+| IAM policy with `Action: "*"` | ✓ | — | — | **critical** |
+| IAM policy with `Resource: "*"` | ✓ | — | — | warning |
+| Storage/DB without encryption | ✓ (RDS, EBS) | ✓ (Cloud SQL SSL + backups) | ✓ (MSSQL TDE, PostgreSQL SSL) | warning |
 
 ### Tier 3 — Cost-risk hybrid
 
-| Rule | AWS | GCP | Severity |
-|---|---|---|---|
-| Resource cost > 5× median in plan | ✓ | ✓ | warning |
-| Autoscaling with no upper bound | ✓ (`aws_autoscaling_group` max_size) | ✓ (GKE node pool max_node_count) | warning |
-| New/updated resource missing required cost tags/labels | ✓ | ✓ | info |
+| Rule | AWS | GCP | Azure | Severity |
+|---|---|---|---|---|
+| Resource cost > 5× median in plan | ✓ | ✓ | ✓ | warning |
+| Autoscaling with no upper bound | ✓ (ASG max_size) | ✓ (GKE max_node_count) | ✓ (AKS max_count) | warning |
+| New/updated resource missing required cost tags/labels | ✓ | ✓ | ✓ | info |
 
-The missing-tags/labels rule checks for `Env` and `Team` by default. Override with `--required-tags`:
+The missing-tags/labels rule checks for `env` and `team` by default. Override with `--required-tags`:
 
 ```
 # required-tags.txt
@@ -496,6 +503,22 @@ Prices are approximate on-demand rates stored as a static snapshot (no API keys 
 | `aws_iam_policy` / `aws_iam_role_policy` | n/a | Tier 2 |
 | `aws_autoscaling_group` | n/a | Tier 3 |
 
+### Azure (`pricing/providers/azure/prices.go`, region: East US)
+
+| Resource | Pricing | Rules |
+|---|---|---|
+| `azurerm_linux_virtual_machine` / `azurerm_windows_virtual_machine` | B / D / E / F / NC series | Tier 1, 3 |
+| `azurerm_kubernetes_cluster` | per default node pool VM size | Tier 1, 3 |
+| `azurerm_mssql_database` / `azurerm_sql_database` | DTU (S0–S4) and vCore (GP/BC Gen5) | Tier 1, 2, 3 |
+| `azurerm_postgresql_server` / `azurerm_postgresql_flexible_server` | GP_Gen5 / GP_Standard_Dsv3 / Burstable | Tier 1, 2, 3 |
+| `azurerm_mysql_server` / `azurerm_mysql_flexible_server` | GP_Gen5 / Burstable | Tier 1, 2, 3 |
+| `azurerm_managed_disk` | per GB — Standard / StandardSSD / Premium / UltraSSD LRS | Tier 1 |
+| `azurerm_lb` / `azurerm_application_gateway` | base rate | Tier 3 |
+| `azurerm_storage_account` | usage-based → unknown | Tier 2, 3 |
+| `azurerm_cosmosdb_account` | usage-based → unknown | Tier 1, 3 |
+| `azurerm_function_app` / `azurerm_linux_function_app` | usage-based → unknown | Tier 3 |
+| `azurerm_network_security_group` | free | Tier 2 |
+
 ### GCP (`pricing/providers/gcp/prices.go`, region: us-central1)
 
 | Resource | Pricing | Rules |
@@ -513,14 +536,14 @@ Prices are approximate on-demand rates stored as a static snapshot (no API keys 
 | `google_bigquery_dataset` | usage-based → unknown | Tier 3 |
 | `google_compute_firewall` | n/a | Tier 2 |
 
-Azure is stubbed with an explicit `not implemented` error — designed for extension without touching the core pipeline.
+Provider is auto-detected per resource type (`azurerm_` → Azure, `google_` → GCP, everything else → AWS). Mixed-provider plans work — all resources run through a single report.
 
 ---
 
 ## Development
 
 ```bash
-go test ./...          # 206 tests
+go test ./...          # 259 tests
 go build -o tfx ./cli/
 ```
 

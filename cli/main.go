@@ -8,12 +8,15 @@ import (
 	"strings"
 
 	"github.com/amt/tf-cost-risk/cfn"
+	azurenorm "github.com/amt/tf-cost-risk/normalizer/providers/azure"
 	awsnorm "github.com/amt/tf-cost-risk/normalizer/providers/aws"
 	gcpnorm "github.com/amt/tf-cost-risk/normalizer/providers/gcp"
 	"github.com/amt/tf-cost-risk/parser"
+	azurepricing "github.com/amt/tf-cost-risk/pricing/providers/azure"
 	awspricing "github.com/amt/tf-cost-risk/pricing/providers/aws"
 	gcppricing "github.com/amt/tf-cost-risk/pricing/providers/gcp"
 	"github.com/amt/tf-cost-risk/report"
+	azurerules "github.com/amt/tf-cost-risk/rules/providers/azure"
 	awsrules "github.com/amt/tf-cost-risk/rules/providers/aws"
 	gcprules "github.com/amt/tf-cost-risk/rules/providers/gcp"
 	"github.com/amt/tf-cost-risk/tags"
@@ -164,6 +167,7 @@ func runPipeline(changes []parser.ResourceChange, region, format string, require
 
 	awsNorm := &awsnorm.Normalizer{}
 	gcpNorm := &gcpnorm.Normalizer{}
+	azureNorm := &azurenorm.Normalizer{}
 
 	var resources []normalizer.NormalizedResource
 	for _, rc := range changes {
@@ -171,9 +175,12 @@ func runPipeline(changes []parser.ResourceChange, region, format string, require
 			nr  normalizer.NormalizedResource
 			err error
 		)
-		if strings.HasPrefix(rc.Type, "google_") {
+		switch {
+		case strings.HasPrefix(rc.Type, "google_"):
 			nr, err = gcpNorm.Normalize(rc, region)
-		} else {
+		case strings.HasPrefix(rc.Type, "azurerm_"):
+			nr, err = azureNorm.Normalize(rc, region)
+		default:
 			nr, err = awsNorm.Normalize(rc, region)
 		}
 		if err != nil {
@@ -185,11 +192,15 @@ func runPipeline(changes []parser.ResourceChange, region, format string, require
 
 	awsPricer := &awspricing.Pricer{}
 	gcpPricer := &gcppricing.Pricer{}
+	azurePricer := &azurepricing.Pricer{}
 	var estimates []pricing.Estimate
 	for _, nr := range resources {
-		if nr.Provider == "gcp" {
+		switch nr.Provider {
+		case "gcp":
 			estimates = append(estimates, gcpPricer.Estimate(nr))
-		} else {
+		case "azure":
+			estimates = append(estimates, azurePricer.Estimate(nr))
+		default:
 			estimates = append(estimates, awsPricer.Estimate(nr))
 		}
 	}
@@ -198,6 +209,7 @@ func runPipeline(changes []parser.ResourceChange, region, format string, require
 	var findings []rules.Finding
 	findings = append(findings, awsrules.Run(ctx, awsrules.AllRules())...)
 	findings = append(findings, gcprules.Run(ctx, gcprules.AllRules())...)
+	findings = append(findings, azurerules.Run(ctx, azurerules.AllRules())...)
 
 	r := report.Build(estimates, findings)
 	render(r, format)
