@@ -15,6 +15,7 @@ if [ ! -x "$TFX" ]; then
 fi
 
 hr() { printf '\n%s\n' "$(printf '=%.0s' {1..60})"; }
+
 run() {
   local label="$1"; shift
   hr
@@ -24,14 +25,32 @@ run() {
   sleep 1
 }
 
-printf 'tfx — Terraform plan cost & risk analyzer demo\n'
+run_cfn() {
+  local label="$1"; shift
+  hr
+  printf '$ tfx cfn %s\n\n' "$label"
+  sleep 0.5
+  "$TFX" cfn "$@" || true
+  sleep 1
+}
+
+printf 'tfx — Terraform & CloudFormation cost & risk analyzer demo\n'
 sleep 1
 
+printf '\n── Terraform fixtures ──────────────────────────────────\n'
 run "fixtures/clean_plan.json"              fixtures/clean_plan.json
 run "fixtures/cost_increase_plan.json"      fixtures/cost_increase_plan.json
 run "fixtures/destructive_plan.json"        fixtures/destructive_plan.json
 run "fixtures/security_misconfig_plan.json" fixtures/security_misconfig_plan.json
 run "fixtures/destructive_plan.json --format json" fixtures/destructive_plan.json --format json
+
+printf '\n── CloudFormation fixtures ─────────────────────────────\n'
+run_cfn "fixtures/cfn_changeset.json" \
+  fixtures/cfn_changeset.json
+run_cfn "fixtures/cfn_changeset.json --template fixtures/cfn_template.json" \
+  fixtures/cfn_changeset.json --template fixtures/cfn_template.json
+run_cfn "fixtures/cfn_changeset.json --template fixtures/cfn_template.json --format json" \
+  fixtures/cfn_changeset.json --template fixtures/cfn_template.json --format json
 
 hr
 printf '\nDemo complete.\n'
