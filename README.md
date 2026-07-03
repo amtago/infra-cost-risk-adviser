@@ -12,7 +12,7 @@ Requires Go 1.21+. Check with `go version`.
 
 ```bash
 git clone https://github.com/amtago/infra-cost-risk-adviser
-cd tf-cost-risk
+cd infra-cost-risk-adviser
 go build -o tfx ./cli/
 ```
 
