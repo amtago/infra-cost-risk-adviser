@@ -11,7 +11,7 @@
 Requires Go 1.21+. Check with `go version`.
 
 ```bash
-git clone https://github.com/amt/tf-cost-risk
+git clone https://github.com/amtago/infra-cost-risk-adviser
 cd tf-cost-risk
 go build -o tfx ./cli/
 ```
