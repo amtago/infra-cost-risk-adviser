@@ -21,6 +21,9 @@ type DestructiveChangeRule struct{}
 func (r *DestructiveChangeRule) Evaluate(ctx rules.EvaluateContext) []rules.Finding {
 	var findings []rules.Finding
 	for _, nr := range ctx.Resources {
+		if nr.Provider != "aws" {
+			continue
+		}
 		switch nr.ChangeType {
 		case parser.ChangeDelete:
 			findings = append(findings, destructiveFinding(nr, "will be permanently deleted"))

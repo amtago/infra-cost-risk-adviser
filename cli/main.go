@@ -9,10 +9,13 @@ import (
 
 	"github.com/amt/tf-cost-risk/cfn"
 	awsnorm "github.com/amt/tf-cost-risk/normalizer/providers/aws"
+	gcpnorm "github.com/amt/tf-cost-risk/normalizer/providers/gcp"
 	"github.com/amt/tf-cost-risk/parser"
 	awspricing "github.com/amt/tf-cost-risk/pricing/providers/aws"
+	gcppricing "github.com/amt/tf-cost-risk/pricing/providers/gcp"
 	"github.com/amt/tf-cost-risk/report"
 	awsrules "github.com/amt/tf-cost-risk/rules/providers/aws"
+	gcprules "github.com/amt/tf-cost-risk/rules/providers/gcp"
 	"github.com/amt/tf-cost-risk/tags"
 
 	"github.com/amt/tf-cost-risk/normalizer"
@@ -152,17 +155,27 @@ func runCFN(args []string) {
 }
 
 // runPipeline executes normalize → price → rules → report and renders output.
-// Shared by runAnalyze and runCFN.
+// Provider is detected per-resource from the resource type prefix (google_ → GCP, aws_ → AWS).
 func runPipeline(changes []parser.ResourceChange, region, format string, requiredTags []string) {
 	if len(changes) == 0 {
 		render(report.Build(nil, nil), format)
 		return
 	}
 
-	norm := &awsnorm.Normalizer{}
+	awsNorm := &awsnorm.Normalizer{}
+	gcpNorm := &gcpnorm.Normalizer{}
+
 	var resources []normalizer.NormalizedResource
 	for _, rc := range changes {
-		nr, err := norm.Normalize(rc, region)
+		var (
+			nr  normalizer.NormalizedResource
+			err error
+		)
+		if strings.HasPrefix(rc.Type, "google_") {
+			nr, err = gcpNorm.Normalize(rc, region)
+		} else {
+			nr, err = awsNorm.Normalize(rc, region)
+		}
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "warning: could not normalize %s (%s): %v\n", rc.Address, rc.Type, err)
 			continue
@@ -170,16 +183,21 @@ func runPipeline(changes []parser.ResourceChange, region, format string, require
 		resources = append(resources, nr)
 	}
 
-	pricer := &awspricing.Pricer{}
+	awsPricer := &awspricing.Pricer{}
+	gcpPricer := &gcppricing.Pricer{}
 	var estimates []pricing.Estimate
 	for _, nr := range resources {
-		estimates = append(estimates, pricer.Estimate(nr))
+		if nr.Provider == "gcp" {
+			estimates = append(estimates, gcpPricer.Estimate(nr))
+		} else {
+			estimates = append(estimates, awsPricer.Estimate(nr))
+		}
 	}
 
-	findings := awsrules.Run(
-		rules.EvaluateContext{Resources: resources, Estimates: estimates, RequiredTags: requiredTags},
-		awsrules.AllRules(),
-	)
+	ctx := rules.EvaluateContext{Resources: resources, Estimates: estimates, RequiredTags: requiredTags}
+	var findings []rules.Finding
+	findings = append(findings, awsrules.Run(ctx, awsrules.AllRules())...)
+	findings = append(findings, gcprules.Run(ctx, gcprules.AllRules())...)
 
 	r := report.Build(estimates, findings)
 	render(r, format)

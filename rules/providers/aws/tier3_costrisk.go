@@ -21,9 +21,12 @@ func (r *OversizedResourceRule) Evaluate(ctx rules.EvaluateContext) []rules.Find
 		multiple = 5
 	}
 
-	// Collect known costs (exclude Unknown and deletes).
+	// Collect known costs for AWS resources only (exclude Unknown and deletes).
 	addrToNR := make(map[string]struct{ changeType parser.ChangeType })
 	for _, nr := range ctx.Resources {
+		if nr.Provider != "aws" {
+			continue
+		}
 		addrToNR[nr.Address] = struct{ changeType parser.ChangeType }{nr.ChangeType}
 	}
 
@@ -97,6 +100,9 @@ func (r *MissingCostTagsRule) Evaluate(ctx rules.EvaluateContext) []rules.Findin
 	}
 	var findings []rules.Finding
 	for _, nr := range ctx.Resources {
+		if nr.Provider != "aws" {
+			continue
+		}
 		if nr.ChangeType == parser.ChangeDelete {
 			continue
 		}

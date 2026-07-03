@@ -28,10 +28,10 @@ func TestOversized_FlagsExpensiveOutlier(t *testing.T) {
 	// median of [10, 10, 10, 10] = 10; threshold = 50
 	// big resource at 100 should be flagged
 	resources := []normalizer.NormalizedResource{
-		{Address: "aws_instance.a", ResourceType: "aws_instance", ChangeType: parser.ChangeCreate},
-		{Address: "aws_instance.b", ResourceType: "aws_instance", ChangeType: parser.ChangeCreate},
-		{Address: "aws_instance.c", ResourceType: "aws_instance", ChangeType: parser.ChangeCreate},
-		{Address: "aws_instance.big", ResourceType: "aws_instance", ChangeType: parser.ChangeCreate},
+		{Address: "aws_instance.a", Provider: "aws", ResourceType: "aws_instance", ChangeType: parser.ChangeCreate},
+		{Address: "aws_instance.b", Provider: "aws", ResourceType: "aws_instance", ChangeType: parser.ChangeCreate},
+		{Address: "aws_instance.c", Provider: "aws", ResourceType: "aws_instance", ChangeType: parser.ChangeCreate},
+		{Address: "aws_instance.big", Provider: "aws", ResourceType: "aws_instance", ChangeType: parser.ChangeCreate},
 	}
 	estimates := []pricing.Estimate{
 		est("aws_instance.a", 10),
@@ -57,9 +57,9 @@ func TestOversized_FlagsExpensiveOutlier(t *testing.T) {
 func TestOversized_AllSimilarCost_NoFinding(t *testing.T) {
 	r := &OversizedResourceRule{OversizeMultiple: 5}
 	resources := []normalizer.NormalizedResource{
-		{Address: "aws_instance.a", ChangeType: parser.ChangeCreate},
-		{Address: "aws_instance.b", ChangeType: parser.ChangeCreate},
-		{Address: "aws_instance.c", ChangeType: parser.ChangeCreate},
+		{Address: "aws_instance.a", Provider: "aws", ChangeType: parser.ChangeCreate},
+		{Address: "aws_instance.b", Provider: "aws", ChangeType: parser.ChangeCreate},
+		{Address: "aws_instance.c", Provider: "aws", ChangeType: parser.ChangeCreate},
 	}
 	estimates := []pricing.Estimate{
 		est("aws_instance.a", 30),
@@ -75,9 +75,9 @@ func TestOversized_AllSimilarCost_NoFinding(t *testing.T) {
 func TestOversized_UnknownCosts_Excluded(t *testing.T) {
 	r := &OversizedResourceRule{OversizeMultiple: 5}
 	resources := []normalizer.NormalizedResource{
-		{Address: "aws_instance.a", ChangeType: parser.ChangeCreate},
-		{Address: "aws_s3_bucket.x", ChangeType: parser.ChangeCreate},
-		{Address: "aws_instance.big", ChangeType: parser.ChangeCreate},
+		{Address: "aws_instance.a", Provider: "aws", ChangeType: parser.ChangeCreate},
+		{Address: "aws_s3_bucket.x", Provider: "aws", ChangeType: parser.ChangeCreate},
+		{Address: "aws_instance.big", Provider: "aws", ChangeType: parser.ChangeCreate},
 	}
 	estimates := []pricing.Estimate{
 		est("aws_instance.a", 10),
@@ -95,7 +95,7 @@ func TestOversized_SingleResource_NoFinding(t *testing.T) {
 	// Need at least 2 priced resources to compute median.
 	r := &OversizedResourceRule{OversizeMultiple: 5}
 	resources := []normalizer.NormalizedResource{
-		{Address: "aws_instance.solo", ChangeType: parser.ChangeCreate},
+		{Address: "aws_instance.solo", Provider: "aws", ChangeType: parser.ChangeCreate},
 	}
 	findings := r.Evaluate(ctxWithEstimates(resources, []pricing.Estimate{est("aws_instance.solo", 1000)}))
 	if len(findings) != 0 {
@@ -106,9 +106,9 @@ func TestOversized_SingleResource_NoFinding(t *testing.T) {
 func TestOversized_DeleteExcluded(t *testing.T) {
 	r := &OversizedResourceRule{OversizeMultiple: 5}
 	resources := []normalizer.NormalizedResource{
-		{Address: "aws_instance.a", ChangeType: parser.ChangeCreate},
-		{Address: "aws_instance.b", ChangeType: parser.ChangeCreate},
-		{Address: "aws_instance.dying", ChangeType: parser.ChangeDelete},
+		{Address: "aws_instance.a", Provider: "aws", ChangeType: parser.ChangeCreate},
+		{Address: "aws_instance.b", Provider: "aws", ChangeType: parser.ChangeCreate},
+		{Address: "aws_instance.dying", Provider: "aws", ChangeType: parser.ChangeDelete},
 	}
 	estimates := []pricing.Estimate{
 		est("aws_instance.a", 10),
@@ -132,6 +132,7 @@ func taggedNR(address string, tags map[string]string) normalizer.NormalizedResou
 	raw["tags"] = tagRaw
 	return normalizer.NormalizedResource{
 		Address:      address,
+		Provider:     "aws",
 		ResourceType: "aws_instance",
 		ChangeType:   parser.ChangeCreate,
 		Tags:         tags,
@@ -184,6 +185,7 @@ func TestMissingTags_NoTagsAttr_Skipped(t *testing.T) {
 	r := &MissingCostTagsRule{RequiredTags: []string{"Env", "Team"}}
 	nr := normalizer.NormalizedResource{
 		Address:      "aws_iam_role.worker",
+		Provider:     "aws",
 		ResourceType: "aws_iam_role",
 		ChangeType:   parser.ChangeCreate,
 		Tags:         map[string]string{},
@@ -208,6 +210,7 @@ func TestMissingTags_EmptyRequiredList_NoFinding(t *testing.T) {
 func asgNR(address string, maxSize int) normalizer.NormalizedResource {
 	return normalizer.NormalizedResource{
 		Address:      address,
+		Provider:     "aws",
 		ResourceType: "aws_autoscaling_group",
 		ChangeType:   parser.ChangeCreate,
 		Raw:          map[string]interface{}{"max_size": float64(maxSize)},
@@ -218,6 +221,7 @@ func TestAutoscaling_NoMaxSize_Warning(t *testing.T) {
 	r := &UnboundedAutoscalingRule{}
 	nr := normalizer.NormalizedResource{
 		Address:      "aws_autoscaling_group.workers",
+		Provider:     "aws",
 		ResourceType: "aws_autoscaling_group",
 		ChangeType:   parser.ChangeCreate,
 		Raw:          map[string]interface{}{}, // no max_size key
@@ -274,6 +278,7 @@ func TestRun_AllRules_DestructivePlan(t *testing.T) {
 	resources := []normalizer.NormalizedResource{
 		{
 			Address:      "aws_db_instance.prod",
+			Provider:     "aws",
 			ResourceType: "aws_db_instance",
 			ChangeType:   parser.ChangeReplace,
 			Stateful:     true,

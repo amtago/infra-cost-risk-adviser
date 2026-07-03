@@ -1,0 +1,106 @@
+{
+  "format_version": "1.0",
+  "terraform_version": "1.6.0",
+  "resource_changes": [
+    {
+      "address": "google_compute_instance.web",
+      "type": "google_compute_instance",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "machine_type": "e2-standard-4",
+          "zone": "us-central1-a",
+          "labels": { "env": "prod" },
+          "boot_disk": [{}],
+          "network_interface": [{}]
+        }
+      }
+    },
+    {
+      "address": "google_sql_database_instance.db",
+      "type": "google_sql_database_instance",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "region": "us-central1",
+          "deletion_protection": false,
+          "settings": [
+            {
+              "tier": "db-n1-standard-2",
+              "ip_configuration": [{ "require_ssl": false }],
+              "backup_configuration": [{ "enabled": false }]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "address": "google_storage_bucket.assets",
+      "type": "google_storage_bucket",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "location": "US",
+          "uniform_bucket_level_access": false
+        }
+      }
+    },
+    {
+      "address": "google_compute_firewall.allow_ssh",
+      "type": "google_compute_firewall",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "direction": "INGRESS",
+          "source_ranges": ["0.0.0.0/0"],
+          "allow": [
+            { "protocol": "tcp", "ports": ["22"] }
+          ]
+        }
+      }
+    },
+    {
+      "address": "google_container_cluster.primary",
+      "type": "google_container_cluster",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "location": "us-central1",
+          "labels": { "env": "prod", "team": "platform" }
+        }
+      }
+    },
+    {
+      "address": "google_container_node_pool.workers",
+      "type": "google_container_node_pool",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "location": "us-central1",
+          "autoscaling": [{ "min_node_count": 1, "max_node_count": 0 }],
+          "node_config": [{ "machine_type": "n2-standard-4" }],
+          "labels": {}
+        }
+      }
+    },
+    {
+      "address": "google_compute_disk.data",
+      "type": "google_compute_disk",
+      "change": {
+        "actions": ["delete"],
+        "before": {
+          "zone": "us-central1-a",
+          "size": 100,
+          "type": "pd-ssd"
+        },
+        "after": null
+      }
+    }
+  ]
+}

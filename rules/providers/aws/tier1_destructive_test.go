@@ -15,6 +15,7 @@ func ctx(resources ...normalizer.NormalizedResource) rules.EvaluateContext {
 func nrBasic(resourceType, address string, changeType parser.ChangeType, stateful bool, raw map[string]interface{}) normalizer.NormalizedResource {
 	return normalizer.NormalizedResource{
 		Address:      address,
+		Provider:     "aws",
 		ResourceType: resourceType,
 		ChangeType:   changeType,
 		Stateful:     stateful,
