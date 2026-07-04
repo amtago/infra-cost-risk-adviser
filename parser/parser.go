@@ -59,9 +59,21 @@ func ParseFile(path string) ([]ResourceChange, error) {
 
 // Parse parses raw terraform plan JSON bytes and returns resource changes.
 func Parse(data []byte) ([]ResourceChange, error) {
+	if looksLikeBinaryPlan(data) {
+		return nil, fmt.Errorf(
+			"file appears to be a binary Terraform plan, not JSON.\n" +
+				"Convert it first:\n" +
+				"  terraform show -json tfplan.binary > plan.json\n" +
+				"Then run: tfx analyze plan.json",
+		)
+	}
 	var plan tfPlan
 	if err := json.Unmarshal(data, &plan); err != nil {
-		return nil, fmt.Errorf("parsing plan JSON: %w", err)
+		return nil, fmt.Errorf(
+			"parsing plan JSON: %w\n"+
+				"Make sure the file was generated with: terraform show -json <planfile>",
+			err,
+		)
 	}
 
 	var changes []ResourceChange
@@ -81,6 +93,26 @@ func Parse(data []byte) ([]ResourceChange, error) {
 		})
 	}
 	return changes, nil
+}
+
+// looksLikeBinaryPlan returns true if data starts with the Terraform binary
+// plan magic bytes ("tfplan" header) or is clearly not JSON.
+func looksLikeBinaryPlan(data []byte) bool {
+	if len(data) == 0 {
+		return false
+	}
+	// Terraform binary plans begin with the ASCII string "tfplan"
+	if len(data) >= 6 && string(data[:6]) == "tfplan" {
+		return true
+	}
+	// Also catch any non-JSON content that starts with a non-whitespace, non-{ byte
+	for _, b := range data {
+		if b == ' ' || b == '\t' || b == '\n' || b == '\r' {
+			continue
+		}
+		return b != '{' && b != '['
+	}
+	return false
 }
 
 func actionsToChangeType(actions []string) ChangeType {
