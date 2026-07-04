@@ -1,0 +1,144 @@
+{
+  "format_version": "1.0",
+  "terraform_version": "1.6.0",
+  "resource_changes": [
+    {
+      "address": "aws_instance.api",
+      "type": "aws_instance",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "instance_type": "t3.medium",
+          "availability_zone": "us-east-1a",
+          "tags": { "Env": "prod", "Team": "backend" }
+        }
+      }
+    },
+    {
+      "address": "aws_db_instance.primary",
+      "type": "aws_db_instance",
+      "change": {
+        "actions": ["delete"],
+        "before": {
+          "instance_class": "db.r6g.large",
+          "availability_zone": "us-east-1a",
+          "deletion_protection": false,
+          "storage_encrypted": true,
+          "tags": { "Env": "prod", "Team": "backend" }
+        },
+        "after": null
+      }
+    },
+    {
+      "address": "aws_security_group.api",
+      "type": "aws_security_group",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "ingress": [
+            {
+              "from_port": 22,
+              "to_port": 22,
+              "protocol": "tcp",
+              "cidr_blocks": ["0.0.0.0/0"]
+            }
+          ],
+          "tags": { "Env": "prod", "Team": "backend" }
+        }
+      }
+    },
+    {
+      "address": "google_compute_instance.worker",
+      "type": "google_compute_instance",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "machine_type": "n2-standard-4",
+          "zone": "us-central1-a",
+          "labels": { "env": "prod", "team": "data" }
+        }
+      }
+    },
+    {
+      "address": "google_sql_database_instance.analytics",
+      "type": "google_sql_database_instance",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "region": "us-central1",
+          "deletion_protection": true,
+          "settings": [
+            {
+              "tier": "db-n1-standard-4",
+              "ip_configuration": [{ "require_ssl": true }],
+              "backup_configuration": [{ "enabled": true }]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "address": "google_storage_bucket.exports",
+      "type": "google_storage_bucket",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "location": "US",
+          "uniform_bucket_level_access": false,
+          "labels": {}
+        }
+      }
+    },
+    {
+      "address": "azurerm_linux_virtual_machine.frontend",
+      "type": "azurerm_linux_virtual_machine",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "size": "Standard_D4s_v3",
+          "location": "East US",
+          "tags": { "env": "prod", "team": "frontend" }
+        }
+      }
+    },
+    {
+      "address": "azurerm_mssql_database.reporting",
+      "type": "azurerm_mssql_database",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "sku_name": "GP_Gen5_2",
+          "location": "East US",
+          "transparent_data_encryption_enabled": false,
+          "tags": { "env": "prod", "team": "data" }
+        }
+      }
+    },
+    {
+      "address": "azurerm_network_security_group.frontend",
+      "type": "azurerm_network_security_group",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "location": "East US",
+          "security_rule": [
+            {
+              "direction": "Inbound",
+              "access": "Allow",
+              "source_address_prefix": "*",
+              "destination_port_range": "3389"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

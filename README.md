@@ -417,6 +417,9 @@ tfx analyze fixtures/cost_increase_plan.json
 tfx analyze fixtures/destructive_plan.json
 tfx analyze fixtures/security_misconfig_plan.json
 
+# Mixed AWS + GCP + Azure plan (auto-detected, single report)
+tfx analyze fixtures/mixed_provider_plan.json
+
 # Azure Terraform plan
 tfx analyze fixtures/azure_plan.json
 

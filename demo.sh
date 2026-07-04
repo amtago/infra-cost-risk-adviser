@@ -44,6 +44,9 @@ run "fixtures/destructive_plan.json"        fixtures/destructive_plan.json
 run "fixtures/security_misconfig_plan.json" fixtures/security_misconfig_plan.json
 run "fixtures/destructive_plan.json --format json" fixtures/destructive_plan.json --format json
 
+printf '\n── Mixed-provider fixture (AWS + GCP + Azure) ──────────\n'
+run "fixtures/mixed_provider_plan.json" fixtures/mixed_provider_plan.json
+
 printf '\n── Azure fixtures ──────────────────────────────────────\n'
 run "fixtures/azure_plan.json" fixtures/azure_plan.json
 
