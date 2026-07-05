@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/amt/tf-cost-risk/cfn"
@@ -31,11 +32,12 @@ const version = "0.1.0"
 const usage = `tfx — Terraform plan cost & risk analyzer
 
 Usage:
-  tfx analyze <plan.json> [flags]
+  tfx plan [terraform flags...]   Run terraform plan, then analyze (requires terraform in PATH)
+  tfx analyze <plan.json> [flags] Analyze an existing plan JSON file
   tfx cfn <changeset.json> [--template template.json] [flags]
   tfx version
 
-Flags:
+Flags (analyze / cfn):
   --format text|json|markdown Output format (default: text)
   --region <region>           AWS region to use for pricing lookups (default: us-east-1)
   --required-tags <file.txt>  Path to a file listing required cost-allocation tags (one per line).
@@ -43,6 +45,10 @@ Flags:
   --help                      Show this help
 
 Examples:
+  tfx plan                              # run terraform plan + analyze in one step
+  tfx plan -var-file=prod.tfvars        # all terraform flags pass through verbatim
+  tfx plan --format json                # tfx output format (consumed after terraform finishes)
+
   terraform show -json tfplan.binary > plan.json
   tfx analyze plan.json
   tfx analyze plan.json --format json --region eu-west-1
@@ -59,6 +65,8 @@ func main() {
 	}
 
 	switch os.Args[1] {
+	case "plan":
+		runPlan(os.Args[2:])
 	case "analyze":
 		runAnalyze(os.Args[2:])
 	case "cfn":
@@ -71,6 +79,107 @@ func main() {
 		fmt.Fprintf(os.Stderr, "unknown command %q\n\n%s", os.Args[1], usage)
 		os.Exit(1)
 	}
+}
+
+func runPlan(args []string) {
+	// Separate tfx-own flags from terraform pass-through flags.
+	// tfx flags: --format, --region, --required-tags (with value following)
+	tfxFlags := map[string]bool{"--format": true, "--region": true, "--required-tags": true}
+	format := "text"
+	region := "us-east-1"
+	requiredTagsPath := ""
+	var terraformArgs []string
+
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		// Check for --flag=value form
+		for flag := range tfxFlags {
+			if strings.HasPrefix(arg, flag+"=") {
+				val := strings.TrimPrefix(arg, flag+"=")
+				switch flag {
+				case "--format":
+					format = val
+				case "--region":
+					region = val
+				case "--required-tags":
+					requiredTagsPath = val
+				}
+				goto nextArg
+			}
+		}
+		// Check for --flag value form
+		if tfxFlags[arg] && i+1 < len(args) {
+			val := args[i+1]
+			i++
+			switch arg {
+			case "--format":
+				format = val
+			case "--region":
+				region = val
+			case "--required-tags":
+				requiredTagsPath = val
+			}
+			goto nextArg
+		}
+		terraformArgs = append(terraformArgs, arg)
+	nextArg:
+	}
+
+	// Verify terraform is available
+	if _, err := exec.LookPath("terraform"); err != nil {
+		fmt.Fprintln(os.Stderr, "error: terraform not found in PATH\nInstall Terraform: https://developer.hashicorp.com/terraform/install")
+		os.Exit(1)
+	}
+
+	// Temp files cleaned up after analysis
+	planBinary := ".tfx-plan.binary"
+	planJSON := ".tfx-plan.json"
+	defer func() {
+		os.Remove(planBinary)
+		os.Remove(planJSON)
+	}()
+
+	// Step 1: terraform plan -out .tfx-plan.binary [user args...]
+	fmt.Fprintln(os.Stderr, "── Running terraform plan ──────────────────────────────")
+	tfPlanArgs := append([]string{"plan", "-out=" + planBinary}, terraformArgs...)
+	tfPlan := exec.Command("terraform", tfPlanArgs...)
+	tfPlan.Stdout = os.Stdout
+	tfPlan.Stderr = os.Stderr
+	tfPlan.Stdin = os.Stdin
+	if err := tfPlan.Run(); err != nil {
+		// terraform plan itself may exit non-zero for drift — pass that exit code through
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			os.Exit(exitErr.ExitCode())
+		}
+		fmt.Fprintf(os.Stderr, "error: terraform plan failed: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Step 2: terraform show -json .tfx-plan.binary > .tfx-plan.json
+	fmt.Fprintln(os.Stderr, "\n── Generating plan JSON ────────────────────────────────")
+	jsonFile, err := os.Create(planJSON)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: could not create plan JSON file: %v\n", err)
+		os.Exit(1)
+	}
+	tfShow := exec.Command("terraform", "show", "-json", planBinary)
+	tfShow.Stdout = jsonFile
+	tfShow.Stderr = os.Stderr
+	if err := tfShow.Run(); err != nil {
+		jsonFile.Close()
+		fmt.Fprintf(os.Stderr, "error: terraform show failed: %v\n", err)
+		os.Exit(1)
+	}
+	jsonFile.Close()
+
+	// Step 3: run tfx analysis on the generated JSON
+	fmt.Fprintln(os.Stderr, "\n── tfx analysis ────────────────────────────────────────")
+	changes, err := parser.ParseFile(planJSON)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+	runPipeline(changes, region, format, loadRequiredTags(requiredTagsPath))
 }
 
 func runAnalyze(args []string) {

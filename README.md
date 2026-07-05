@@ -44,29 +44,38 @@ go run ./cli/ analyze plan.json
 
 ## Quick start
 
-**Step 1 — generate a plan JSON file from your Terraform project:**
+### Option A — one command (requires terraform in PATH)
 
 ```bash
 cd your-terraform-directory/
-terraform init          # if not already initialized
-terraform plan -out tfplan.binary
-terraform show -json tfplan.binary > plan.json
+tfx plan
 ```
 
-**Step 2 — run tfx:**
+`tfx plan` runs `terraform plan`, converts the output to JSON, analyzes it, and cleans up — all in one step. Any terraform flags pass through verbatim:
 
 ```bash
+tfx plan -var-file=prod.tfvars
+tfx plan -target=aws_instance.web --format json
+```
+
+### Option B — bring your own plan JSON (no terraform required)
+
+```bash
+cd your-terraform-directory/
+terraform plan -out tfplan.binary
+terraform show -json tfplan.binary > plan.json
 tfx analyze plan.json
 ```
 
-That's it. No API keys, no network access, no configuration required.
+No API keys, no network access, no configuration required.
 
 ---
 
 ## Usage
 
 ```
-tfx analyze <plan.json> [flags]
+tfx plan [terraform flags...]   Run terraform plan + analyze in one step
+tfx analyze <plan.json> [flags] Analyze an existing plan JSON file
 tfx cfn <changeset.json> [--template template.json] [flags]
 tfx version
 tfx --help
